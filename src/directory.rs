@@ -1,32 +1,21 @@
 use crate::{syscalls, CStr};
-use alloc::{vec, vec::Vec};
 use libc::c_int;
+
+use alloc::{vec, vec::Vec};
 
 pub struct Directory {
     fd: c_int,
 }
 
-impl Directory {
-    pub fn raw_fd(&self) -> c_int {
-        self.fd
-    }
-}
-
-impl Drop for Directory {
-    fn drop(&mut self) {
-        let _ = syscalls::close(self.fd);
-    }
-}
-
-pub struct DirectoryContents {
-    dirents: Vec<u8>,
-}
-
 impl<'a> Directory {
     pub fn open(path: CStr) -> Result<Self, crate::Error> {
-        let fd = syscalls::open_dir(path)?;
+        Ok(Self {
+            fd: syscalls::open_dir(path)?,
+        })
+    }
 
-        Ok(Self { fd })
+    pub fn raw_fd(&self) -> c_int {
+        self.fd
     }
 
     pub fn read(&self) -> Result<DirectoryContents, crate::Error> {
@@ -44,6 +33,16 @@ impl<'a> Directory {
 
         Ok(DirectoryContents { dirents })
     }
+}
+
+impl Drop for Directory {
+    fn drop(&mut self) {
+        let _ = syscalls::close(self.fd);
+    }
+}
+
+pub struct DirectoryContents {
+    dirents: Vec<u8>,
 }
 
 impl DirectoryContents {
@@ -86,16 +85,24 @@ impl<'a> Iterator for IterDir<'a> {
     }
 }
 
-// Storing just a reference in here instead of a CStr and a d_type makes this
-// struct smaller and prevents calling strlen if the name is never required.
+// Storing just a reference in here instead of an inode, d_type, and CStr makes
+// this struct smaller and prevents calling strlen if the name is never required.
 #[derive(Clone)]
 pub struct DirEntry<'a> {
     raw_dirent: &'a libc::dirent64,
 }
 
 impl<'a> DirEntry<'a> {
+    pub fn inode(&self) -> libc::c_ulong {
+        self.raw_dirent.d_ino
+    }
+
     pub fn name(&self) -> CStr {
         unsafe { CStr::from_ptr(self.raw_dirent.d_name.as_ptr()) }
+    }
+
+    pub fn name_ptr(&self) -> *const libc::c_char {
+        self.raw_dirent.d_name.as_ptr()
     }
 
     pub fn d_type(&self) -> DType {
