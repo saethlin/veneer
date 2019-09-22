@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 use crate::{CStr, Error};
 
 use libc::c_int;

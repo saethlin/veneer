@@ -3,7 +3,7 @@ extern crate alloc;
 mod cstr;
 pub mod directory;
 mod error;
-mod syscalls;
+pub mod syscalls;
 
 pub use cstr::CStr;
 pub use directory::Directory;
