@@ -16,9 +16,7 @@ pub fn open_dir(path: CStr) -> Result<c_int, Error> {
         syscall!(
             OPEN,
             path.as_ptr(),
-            libc::O_RDONLY,
-            libc::O_DIRECTORY,
-            libc::O_CLOEXEC
+            libc::O_RDONLY | libc::O_DIRECTORY | libc::O_CLOEXEC
         )
     }
     .to_result_and(|n| n as c_int)
