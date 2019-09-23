@@ -1,8 +1,20 @@
-pub struct Error(pub(crate) isize);
+pub struct Error(pub isize);
 
 impl Error {
     pub fn msg(&self) -> &'static str {
         ERROR_MESSAGES.get(self.0 as usize).unwrap_or(&"UNKNOWN")
+    }
+}
+
+impl PartialEq<i32> for Error {
+    fn eq(&self, other: &i32) -> bool {
+        self.0 == *other as isize
+    }
+}
+
+impl core::fmt::Debug for Error {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+        write!(f, "{}", self.msg())
     }
 }
 

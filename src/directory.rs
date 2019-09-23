@@ -29,7 +29,7 @@ impl<'a> Directory {
             bytes_used += bytes_read;
         }
 
-        dirents.truncate(bytes_read);
+        dirents.truncate(bytes_used);
 
         Ok(DirectoryContents { dirents })
     }
@@ -42,7 +42,7 @@ impl Drop for Directory {
 }
 
 pub struct DirectoryContents {
-    dirents: Vec<u8>,
+    pub dirents: Vec<u8>,
 }
 
 impl DirectoryContents {
@@ -129,4 +129,19 @@ pub enum DType {
     REG = 8,
     LNK = 10,
     SOCK = 12,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn read_cwd() {
+        let dir = Directory::open(CStr::from_bytes(b".\0")).unwrap();
+        let contents = dir.read().unwrap();
+        println!("{}", contents.dirents.len());
+        for e in contents.iter() {
+            println!("{:#?}", e.name());
+        }
+    }
 }
