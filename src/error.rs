@@ -3,7 +3,7 @@ pub struct Error(pub isize);
 impl Error {
     pub fn msg(&self) -> &'static str {
         unsafe {
-            let msg_ptr = libc::strerror(self.0 as libc::c_int - 1);
+            let msg_ptr = libc::strerror(self.0 as libc::c_int);
             let bytes = core::slice::from_raw_parts(msg_ptr as *const u8, libc::strlen(msg_ptr));
             core::str::from_utf8_unchecked(bytes)
         }
@@ -25,5 +25,17 @@ impl core::fmt::Debug for Error {
 impl core::fmt::Display for Error {
     fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         write!(f, "{}", self.msg())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn error_messages() {
+        for i in 1..41 {
+            println!("{} {:?}", i, Error(i).msg());
+        }
     }
 }
