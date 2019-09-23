@@ -2,7 +2,11 @@ pub struct Error(pub isize);
 
 impl Error {
     pub fn msg(&self) -> &'static str {
-        ERROR_MESSAGES.get(self.0 as usize).unwrap_or(&"UNKNOWN")
+        unsafe {
+            let msg_ptr = libc::strerror(self.0 as libc::c_int - 1);
+            let bytes = core::slice::from_raw_parts(msg_ptr as *const u8, libc::strlen(msg_ptr));
+            core::str::from_utf8_unchecked(bytes)
+        }
     }
 }
 
@@ -23,46 +27,3 @@ impl core::fmt::Display for Error {
         write!(f, "{}", self.msg())
     }
 }
-
-static ERROR_MESSAGES: [&'static str; 40] = [
-    "Operation not permitted",
-    "No such file or directory",
-    "No such process",
-    "Interrupted system call",
-    "I/O error",
-    "No such device or address",
-    "Argument list too long",
-    "Exec format error",
-    "Bad file number",
-    "No child processes",
-    "Try again",
-    "Out of memory",
-    "Permission denied",
-    "Bad address",
-    "Block device required",
-    "Device or resource busy",
-    "File exists",
-    "Cross-device link",
-    "No such device",
-    "Not a directory",
-    "Is a directory",
-    "Invalid argument",
-    "File table overflow",
-    "Too many open files",
-    "Not a typewriter",
-    "Text file busy",
-    "File too large",
-    "No space left on device",
-    "Illegal seek",
-    "Read-only file system",
-    "Too many links",
-    "Broken pipe",
-    "Math argument out of domain of func",
-    "Math result not representable",
-    "Resource deadlock would occur",
-    "File name too long",
-    "No record locks available",
-    "Function not implemented",
-    "Directory not empty",
-    "Too many symbolic links encountered",
-];
