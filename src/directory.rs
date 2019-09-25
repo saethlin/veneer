@@ -42,7 +42,7 @@ impl Drop for Directory {
 }
 
 pub struct DirectoryContents {
-    pub dirents: Vec<u8>,
+    dirents: Vec<u8>,
 }
 
 impl DirectoryContents {
@@ -120,6 +120,7 @@ impl<'a> DirEntry<'a> {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
 pub enum DType {
     UNKNOWN = 0,
     FIFO = 1,
@@ -139,9 +140,23 @@ mod tests {
     fn read_cwd() {
         let dir = Directory::open(CStr::from_bytes(b".\0")).unwrap();
         let contents = dir.read().unwrap();
-        println!("{}", contents.dirents.len());
-        for e in contents.iter() {
-            println!("{:#?}", e.name());
+
+        let mut libc_dirents = Vec::new();
+        unsafe {
+            let dirp = libc::opendir(b".\0".as_ptr() as *const libc::c_char);
+            let mut entry = libc::readdir64(dirp);
+            while !entry.is_null() {
+                libc_dirents.push(*entry);
+                entry = libc::readdir64(dirp);
+            }
+        }
+
+        for (libc, ven) in libc_dirents.iter().zip(contents.iter()) {
+            unsafe {
+                assert_eq!(CStr::from_ptr(libc.d_name.as_ptr()), ven.name());
+            }
+            assert_eq!(libc.d_ino, ven.inode());
+            assert_eq!(libc.d_type, ven.d_type() as u8);
         }
     }
 }

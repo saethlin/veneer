@@ -44,6 +44,12 @@ impl<'a> PartialEq<&[u8]> for CStr<'a> {
     }
 }
 
+impl<'a> PartialEq<&str> for CStr<'a> {
+    fn eq(&self, other: &&str) -> bool {
+        &self.bytes[..self.bytes.len() - 1] == other.as_bytes()
+    }
+}
+
 impl<'a> fmt::Debug for CStr<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match str::from_utf8(self.as_bytes()) {

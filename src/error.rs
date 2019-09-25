@@ -31,11 +31,18 @@ impl core::fmt::Display for Error {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::CStr;
+    use core::fmt::Write;
 
     #[test]
     fn error_messages() {
         for i in 1..41 {
-            println!("{} {:?}", i, Error(i).msg());
+            let libc_error = unsafe { CStr::from_ptr(libc::strerror(i)) };
+
+            let mut veneer_error = std::string::String::new();
+            write!(veneer_error, "{}", Error(i as isize)).unwrap();
+
+            assert_eq!(libc_error, veneer_error.as_str());
         }
     }
 }
