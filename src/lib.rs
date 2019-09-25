@@ -18,7 +18,7 @@ pub use cstr::CStr;
 pub use directory::Directory;
 pub use error::Error;
 
-struct LibcAllocator;
+pub struct LibcAllocator;
 
 use core::alloc::{GlobalAlloc, Layout};
 unsafe impl GlobalAlloc for LibcAllocator {
