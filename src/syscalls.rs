@@ -22,6 +22,20 @@ pub fn open_dir(path: CStr) -> Result<c_int, Error> {
     .to_result_and(|n| n as c_int)
 }
 
+pub fn fstatat(fd: c_int, name: CStr) -> Result<libc::stat64, Error> {
+    unsafe {
+        let mut stats = core::mem::zeroed();
+        syscall!(
+            NEWFSTATAT,
+            fd,
+            name.as_ptr(),
+            &mut stats as *mut libc::stat64,
+            libc::AT_SYMLINK_FOLLOW
+        )
+        .to_result_with(stats)
+    }
+}
+
 pub fn lstatat(fd: c_int, name: CStr) -> Result<libc::stat64, Error> {
     unsafe {
         let mut stats = core::mem::zeroed();
