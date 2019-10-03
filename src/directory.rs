@@ -120,7 +120,7 @@ impl<'a> DirEntry<'a> {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DType {
     UNKNOWN = 0,
     FIFO = 1,
