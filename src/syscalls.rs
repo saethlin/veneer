@@ -30,7 +30,7 @@ pub fn fstatat(fd: c_int, name: CStr) -> Result<libc::stat64, Error> {
             fd,
             name.as_ptr(),
             &mut stats as *mut libc::stat64,
-            libc::AT_SYMLINK_FOLLOW
+            0
         )
         .to_result_with(stats)
     }
