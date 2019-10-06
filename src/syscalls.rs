@@ -58,6 +58,10 @@ pub fn faccessat(fd: c_int, name: CStr, mode: c_int) -> Result<(), Error> {
     unsafe { syscall!(FACCESSAT, fd, name.as_ptr(), mode) }.to_result_with(())
 }
 
+pub fn readlinkat(fd: c_int, name: CStr, buf: &mut [u8]) -> Result<usize, Error> {
+    unsafe { syscall!(READLINKAT, fd, name.as_ptr(), buf.as_ptr(), buf.len()) }.to_result_and(|n| n)
+}
+
 pub fn winsize() -> Result<libc::winsize, Error> {
     unsafe {
         let mut winsize: libc::winsize = core::mem::zeroed();
