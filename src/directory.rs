@@ -19,12 +19,14 @@ impl<'a> Directory {
     }
 
     pub fn read(&self) -> Result<DirectoryContents, crate::Error> {
-        let mut dirents = vec![0; 4096];
+        let chunk_size = 4096;
+        let mut dirents = vec![0; chunk_size];
         let mut bytes_read = syscalls::getdents64(self.fd, &mut dirents[..])?;
         let mut bytes_used = bytes_read;
 
-        while bytes_read > 0 {
-            dirents.extend(core::iter::repeat(0).take(4096));
+        // Terminate the loop when there is enough unused space to fit a dir entry
+        while (chunk_size - bytes_read) < core::mem::size_of::<libc::dirent64>() {
+            dirents.extend(core::iter::repeat(0).take(chunk_size));
             bytes_read = syscalls::getdents64(self.fd, &mut dirents[bytes_used..])?;
             bytes_used += bytes_read;
         }
