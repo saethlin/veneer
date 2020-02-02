@@ -22,7 +22,7 @@ impl<'a> CStr<'a> {
     }
 
     pub fn as_bytes(&self) -> &[u8] {
-        &self.bytes[..self.bytes.len() - 1]
+        unsafe { self.bytes.get_unchecked(..self.bytes.len() - 1) }
     }
 
     pub fn get(&self, i: usize) -> Option<u8> {
