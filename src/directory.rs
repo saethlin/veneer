@@ -19,7 +19,7 @@ impl<'a> Directory {
     }
 
     pub fn read(&self) -> Result<DirectoryContents, crate::Error> {
-        let chunk_size = 4096;
+        let chunk_size = 32768;
         let mut dirents = vec![0; chunk_size];
         let mut bytes_used = syscalls::getdents64(self.fd, &mut dirents[..])?;
 
