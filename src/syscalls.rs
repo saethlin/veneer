@@ -3,6 +3,11 @@ use crate::{CStr, Error};
 use libc::c_int;
 use syscall::syscall;
 
+pub fn exit(error_code: c_int) -> ! {
+    unsafe { syscall!(EXIT, error_code) };
+    loop {}
+}
+
 pub fn write(fd: c_int, bytes: &[u8]) -> Result<usize, Error> {
     unsafe { syscall!(WRITE, fd, bytes.as_ptr(), bytes.len()) }.to_result_and(|n| n)
 }

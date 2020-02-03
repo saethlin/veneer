@@ -4,9 +4,6 @@ version = "0.1.0"
 authors = ["Ben Kimock <kimockb@gmail.com>"]
 edition = "2018"
 
-[features]
-std = []
-
 [dependencies]
 libc = "0.2"
 syscall = "0.2"
