@@ -4,8 +4,10 @@ use libc::c_int;
 use syscall::syscall;
 
 pub fn exit(error_code: c_int) -> ! {
-    unsafe { syscall!(EXIT, error_code) };
-    loop {}
+    unsafe {
+        syscall!(EXIT, error_code);
+        core::hint::unreachable_unchecked();
+    }
 }
 
 pub fn write(fd: c_int, bytes: &[u8]) -> Result<usize, Error> {

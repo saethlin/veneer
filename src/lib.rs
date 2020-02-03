@@ -1,3 +1,4 @@
+#![feature(asm)]
 #![no_std]
 
 // We need std in test mode to assert
