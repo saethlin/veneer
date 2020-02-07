@@ -18,6 +18,25 @@ pub fn close(fd: c_int) -> Result<(), Error> {
     unsafe { syscall!(CLOSE, fd) }.to_result_with(())
 }
 
+pub fn kill(pid: usize, signal: i32) -> Result<(), Error> {
+    unsafe { syscall!(KILL, pid, signal) }.to_result_with(())
+}
+
+pub fn mmap(
+    addr: *mut u8,
+    len: usize,
+    prot: i32,
+    flags: i32,
+    fd: i32,
+    offset: isize,
+) -> Result<*mut u8, Error> {
+    unsafe { syscall!(MMAP, addr, len, prot, flags, fd, offset).to_result_and(|n| n as *mut u8) }
+}
+
+pub fn munmap(addr: *mut u8, len: usize) -> Result<(), Error> {
+    unsafe { syscall!(MUNMAP, addr, len) }.to_result_with(())
+}
+
 pub fn open_dir(path: CStr) -> Result<c_int, Error> {
     unsafe {
         syscall!(
