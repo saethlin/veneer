@@ -131,8 +131,13 @@ pub fn faccessat(fd: c_int, name: CStr, mode: c_int) -> Result<(), Error> {
     unsafe { syscall!(FACCESSAT, fd, name.as_ptr(), mode) }.to_result_with(())
 }
 
-pub fn readlinkat(fd: c_int, name: CStr, buf: &mut [u8]) -> Result<usize, Error> {
-    unsafe { syscall!(READLINKAT, fd, name.as_ptr(), buf.as_ptr(), buf.len()) }.to_result_and(|n| n)
+pub fn readlinkat<'a>(fd: c_int, name: CStr, buf: &'a mut [u8]) -> Result<&'a [u8], Error> {
+    match unsafe { syscall!(READLINKAT, fd, name.as_ptr(), buf.as_ptr(), buf.len()) }
+        .to_result_and(|n| n)
+    {
+        Ok(n) => Ok(buf.get(..n).unwrap_or_default()),
+        Err(e) => Err(e),
+    }
 }
 
 pub fn winsize() -> Result<libc::winsize, Error> {
