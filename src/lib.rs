@@ -37,6 +37,26 @@ unsafe impl GlobalAlloc for LibcAllocator {
     }
 }
 
+pub struct MmapAllocator;
+
+unsafe impl GlobalAlloc for MmapAllocator {
+    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+        syscalls::mmap(
+            core::ptr::null_mut(),
+            layout.size(),
+            libc::PROT_READ | libc::PROT_WRITE,
+            libc::MAP_PRIVATE | libc::MAP_ANONYMOUS,
+            -1,
+            0,
+        )
+        .unwrap_or(core::ptr::null_mut())
+    }
+
+    unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
+        let _ = syscalls::munmap(ptr, layout.size());
+    }
+}
+
 #[cfg(test)]
 #[global_allocator]
 static ALLOC: LibcAllocator = LibcAllocator;

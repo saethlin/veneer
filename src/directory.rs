@@ -10,7 +10,7 @@ pub struct Directory {
 impl<'a> Directory {
     pub fn open(path: CStr) -> Result<Self, crate::Error> {
         Ok(Self {
-            fd: syscalls::open_dir(path)?,
+            fd: syscalls::open(path, libc::O_RDONLY | libc::O_DIRECTORY | libc::O_CLOEXEC)?,
         })
     }
 
