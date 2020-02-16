@@ -1,5 +1,6 @@
 #![feature(asm)]
 #![no_std]
+#![warn(clippy::cast_ptr_alignment)]
 
 // We need std in test mode to assert
 #[cfg(test)]
