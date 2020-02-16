@@ -6,7 +6,9 @@ pub struct CStr<'a> {
 }
 
 impl<'a> CStr<'a> {
-    /// Requires that the passed-in pointer be a valid pointer to a null-terminated array of c_char
+    /// # Safety
+    ///
+    /// This function must be called with a pointer to a null-terminated array of bytes
     pub unsafe fn from_ptr(ptr: *const libc::c_char) -> CStr<'a> {
         CStr {
             bytes: core::slice::from_raw_parts(ptr as *const u8, libc::strlen(ptr) + 1),
