@@ -12,18 +12,42 @@ pub fn write(fd: c_int, bytes: &[u8]) -> Result<usize, Error> {
 }
 
 // For directories libc::O_RDONLY | libc::O_DIRECTORY | libc::O_CLOEXEC
-pub fn open(path: CStr, flags: c_int) -> Result<c_int, Error> {
-    unsafe { syscall!(OPEN, path.as_ptr(), flags) }.to_result_and(|n| n as c_int)
+bitflags::bitflags! {
+    pub struct OPEN: libc::c_int {
+        const RDONLY = libc::O_RDONLY;
+        const WRONLY = libc::O_WRONLY;
+        const RDWR = libc::O_RDWR;
+        const APPEND = libc::O_APPEND;
+        const ASYNC = libc::O_ASYNC;
+        const CLOEXEC = libc::O_CLOEXEC;
+        const CREAT = libc::O_CREAT;
+        const DIRECT = libc::O_DIRECT;
+        const DIRECTORY = libc::O_DIRECTORY;
+        const DSYNC = libc::O_DSYNC;
+        const EXCL = libc::O_EXCL;
+        const LARGEFILE = libc::O_LARGEFILE;
+        const NOATIME = libc::O_NOATIME;
+        const NOCTTY = libc::O_NOCTTY;
+        const NOFOLLOW = libc::O_NOFOLLOW;
+        const NONBLOCK = libc::O_NONBLOCK;
+        const PATH = libc::O_PATH;
+        const SYNC = libc::O_SYNC;
+        const TMPFILE = libc::O_TMPFILE;
+        const TRUNC = libc::O_TRUNC;
+    }
+}
+pub fn open(path: CStr, flags: OPEN) -> Result<c_int, Error> {
+    unsafe { syscall!(OPEN, path.as_ptr(), flags.bits) }.to_result_and(|n| n as c_int)
 }
 
 pub fn close(fd: c_int) -> Result<(), Error> {
     unsafe { syscall!(CLOSE, fd) }.to_result_with(())
 }
 
-pub fn exit(error_code: c_int) -> ! {
+pub fn stat(path: CStr) -> Result<libc::stat, Error> {
     unsafe {
-        syscall!(EXIT, error_code);
-        core::hint::unreachable_unchecked();
+        let mut status: libc::stat = core::mem::zeroed();
+        syscall!(STAT, path.as_ptr(), &mut status as *mut libc::stat).to_result_with(status)
     }
 }
 
@@ -59,7 +83,7 @@ pub fn lseek(fd: c_int, seek_mode: SeekFrom, offset: usize) -> Result<usize, Err
     unsafe { syscall!(LSEEK, fd, seek_mode, offset) }.to_result_and(|n| n)
 }
 
-pub fn mmap(
+pub unsafe fn mmap(
     addr: *mut u8,
     len: usize,
     prot: i32,
@@ -67,15 +91,25 @@ pub fn mmap(
     fd: i32,
     offset: isize,
 ) -> Result<*mut u8, Error> {
-    unsafe { syscall!(MMAP, addr, len, prot, flags, fd, offset).to_result_and(|n| n as *mut u8) }
+    syscall!(MMAP, addr, len, prot, flags, fd, offset).to_result_and(|n| n as *mut u8)
 }
 
-pub fn mprotect(addr: *mut u8, len: usize, protection: libc::c_int) -> Result<(), Error> {
-    unsafe { syscall!(MPROTECT, addr, len, protection) }.to_result_with(())
+pub unsafe fn mprotect(addr: *mut u8, len: usize, protection: libc::c_int) -> Result<(), Error> {
+    syscall!(MPROTECT, addr, len, protection).to_result_with(())
 }
 
-pub fn munmap(addr: *mut u8, len: usize) -> Result<(), Error> {
-    unsafe { syscall!(MUNMAP, addr, len) }.to_result_with(())
+pub unsafe fn munmap(addr: *mut u8, len: usize) -> Result<(), Error> {
+    syscall!(MUNMAP, addr, len).to_result_with(())
+}
+
+pub fn mremap(
+    old_address: *mut u8,
+    old_size: usize,
+    new_size: usize,
+    flags: c_int,
+) -> Result<*mut u8, Error> {
+    unsafe { syscall!(MREMAP, old_address, old_size, new_size, flags) }
+        .to_result_and(|n| n as *mut u8)
 }
 
 pub fn brk(addr: *mut u8) -> Result<*mut u8, Error> {
@@ -93,6 +127,37 @@ pub enum SignalWhere {
 }
 pub fn kill(pid: usize, signal: i32) -> Result<(), Error> {
     unsafe { syscall!(KILL, pid, signal) }.to_result_with(())
+}
+
+// Wraps the rt_sigaction call in the same way that glibc does
+// So I guess there's no way to use normal signals, only realtime signals?
+pub fn sigaction(
+    signal: c_int,
+    action: &libc::sigaction,
+    old_action: &mut libc::sigaction,
+) -> Result<(), Error> {
+    unsafe {
+        syscall!(
+            RT_SIGACTION,
+            signal,
+            action as *const libc::sigaction,
+            old_action as *mut libc::sigaction,
+            core::mem::size_of::<libc::sigset_t>()
+        )
+    }
+    .to_result_with(())
+}
+
+//pub fn sigprocmask
+
+//pub fn sigreturn
+
+//pub fn ioctl
+
+pub fn exit(error_code: c_int) {
+    unsafe {
+        syscall!(EXIT, error_code);
+    }
 }
 
 pub fn fstatat(fd: c_int, name: CStr) -> Result<libc::stat64, Error> {

@@ -1,16 +1,15 @@
 use crate::{syscalls, CStr};
 use libc::c_int;
 
-use alloc::{vec, vec::Vec};
-
 pub struct Directory {
     fd: c_int,
 }
 
 impl<'a> Directory {
     pub fn open(path: CStr) -> Result<Self, crate::Error> {
+        use syscalls::OPEN;
         Ok(Self {
-            fd: syscalls::open(path, libc::O_RDONLY | libc::O_DIRECTORY | libc::O_CLOEXEC)?,
+            fd: syscalls::open(path, OPEN::RDONLY | OPEN::DIRECTORY | OPEN::CLOEXEC)?,
         })
     }
 
@@ -19,19 +18,41 @@ impl<'a> Directory {
     }
 
     pub fn read(&self) -> Result<DirectoryContents, crate::Error> {
-        let chunk_size = 32768;
-        let mut dirents = vec![0; chunk_size];
-        let mut bytes_used = syscalls::getdents64(self.fd, &mut dirents[..])?;
+        use alloc::alloc::{alloc, realloc, Layout};
+        unsafe {
+            let chunk_size = 32768;
 
-        // Terminate the loop when there is enough unused space to fit a dir entry
-        while (dirents.len() - bytes_used) < core::mem::size_of::<libc::dirent64>() {
-            dirents.extend(core::iter::repeat(0).take(chunk_size));
-            bytes_used += syscalls::getdents64(self.fd, &mut dirents[bytes_used..])?;
+            let mut layout = Layout::from_size_align_unchecked(
+                chunk_size,
+                core::mem::align_of::<libc::dirent64>(),
+            );
+            let mut ptr = alloc(layout);
+            let mut bytes_used =
+                syscalls::getdents64(self.fd, core::slice::from_raw_parts_mut(ptr, layout.size()))?;
+            let mut previous_bytes_used = 0;
+
+            // Must run this loop until getdents64 returns no new entries
+            // Yes, it looks silly but some filesystems (at least sshfs) rely on this behavior
+            while bytes_used != previous_bytes_used {
+                previous_bytes_used = bytes_used;
+                ptr = realloc(ptr, layout, layout.size() + chunk_size);
+                layout =
+                    Layout::from_size_align_unchecked(layout.size() + chunk_size, layout.align());
+                bytes_used += syscalls::getdents64(
+                    self.fd,
+                    core::slice::from_raw_parts_mut(
+                        ptr.offset(bytes_used as isize),
+                        layout.size() - bytes_used,
+                    ),
+                )?;
+            }
+
+            Ok(DirectoryContents {
+                ptr,
+                len: bytes_used,
+                layout,
+            })
         }
-
-        dirents.truncate(bytes_used);
-
-        Ok(DirectoryContents { dirents })
     }
 }
 
@@ -42,14 +63,24 @@ impl Drop for Directory {
 }
 
 pub struct DirectoryContents {
-    dirents: Vec<u8>,
+    ptr: *const u8,
+    len: usize,
+    layout: alloc::alloc::Layout,
 }
 
 impl DirectoryContents {
     pub fn iter(&self) -> IterDir {
         IterDir {
-            contents: self.dirents.as_slice(),
+            contents: unsafe { core::slice::from_raw_parts(self.ptr, self.len) },
             offset: 0,
+        }
+    }
+}
+
+impl Drop for DirectoryContents {
+    fn drop(&mut self) {
+        unsafe {
+            alloc::alloc::dealloc(self.ptr as *mut u8, self.layout);
         }
     }
 }
@@ -135,6 +166,7 @@ pub enum DType {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloc::vec::Vec;
 
     #[test]
     fn read_cwd() {
