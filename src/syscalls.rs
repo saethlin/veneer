@@ -1,7 +1,7 @@
 use crate::{CStr, Error};
 
 use libc::c_int;
-use syscall::syscall;
+use sc::syscall;
 
 pub fn read(fd: c_int, bytes: &mut [u8]) -> Result<usize, Error> {
     unsafe { syscall!(READ, fd, bytes.as_ptr(), bytes.len()) }.to_result_and(|n| n)
@@ -208,7 +208,7 @@ pub fn readlinkat<'a>(fd: c_int, name: CStr, buf: &'a mut [u8]) -> Result<&'a [u
 pub fn winsize() -> Result<libc::winsize, Error> {
     unsafe {
         let mut winsize: libc::winsize = core::mem::zeroed();
-        syscall::syscall!(
+        syscall!(
             IOCTL,
             libc::STDOUT_FILENO,
             libc::TIOCGWINSZ,
