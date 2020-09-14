@@ -4,14 +4,14 @@ use libc::c_int;
 use sc::syscall;
 
 pub fn read(fd: c_int, bytes: &mut [u8]) -> Result<usize, Error> {
-    unsafe { syscall!(READ, fd, bytes.as_ptr(), bytes.len()) }.to_result_and(|n| n)
+    unsafe { syscall!(READ, fd, bytes.as_ptr(), bytes.len()) }.usize_result()
 }
 
 pub fn write(fd: c_int, bytes: &[u8]) -> Result<usize, Error> {
-    unsafe { syscall!(WRITE, fd, bytes.as_ptr(), bytes.len()) }.to_result_and(|n| n)
+    unsafe { syscall!(WRITE, fd, bytes.as_ptr(), bytes.len()) }.usize_result()
 }
 
-// For directories libc::O_RDONLY | libc::O_DIRECTORY | libc::O_CLOEXEC
+// For directories RDONLY | DIRECTORY | CLOEXEC
 bitflags::bitflags! {
     pub struct OPEN: libc::c_int {
         const RDONLY = libc::O_RDONLY;
@@ -41,7 +41,7 @@ pub fn open(path: CStr, flags: OPEN) -> Result<c_int, Error> {
 }
 
 pub fn close(fd: c_int) -> Result<(), Error> {
-    unsafe { syscall!(CLOSE, fd) }.to_result_with(())
+    unsafe { syscall!(CLOSE, fd) }.null_result()
 }
 
 pub fn stat(path: CStr) -> Result<libc::stat, Error> {
@@ -66,7 +66,7 @@ pub fn lstat(path: CStr) -> Result<libc::stat, Error> {
 }
 
 pub fn poll(fds: &mut [libc::pollfd], timeout: c_int) -> Result<usize, Error> {
-    unsafe { syscall!(POLL, fds.as_ptr(), fds.len(), timeout) }.to_result_and(|n| n)
+    unsafe { syscall!(POLL, fds.as_ptr(), fds.len(), timeout) }.usize_result()
 }
 
 pub enum SeekFrom {
@@ -80,7 +80,7 @@ pub fn lseek(fd: c_int, seek_mode: SeekFrom, offset: usize) -> Result<usize, Err
         SeekFrom::End => libc::SEEK_END,
         SeekFrom::Current => libc::SEEK_CUR,
     };
-    unsafe { syscall!(LSEEK, fd, seek_mode, offset) }.to_result_and(|n| n)
+    unsafe { syscall!(LSEEK, fd, seek_mode, offset) }.usize_result()
 }
 
 pub unsafe fn mmap(
@@ -95,38 +95,15 @@ pub unsafe fn mmap(
 }
 
 pub unsafe fn mprotect(addr: *mut u8, len: usize, protection: libc::c_int) -> Result<(), Error> {
-    syscall!(MPROTECT, addr, len, protection).to_result_with(())
+    syscall!(MPROTECT, addr, len, protection).null_result()
 }
 
 pub unsafe fn munmap(addr: *mut u8, len: usize) -> Result<(), Error> {
-    syscall!(MUNMAP, addr, len).to_result_with(())
-}
-
-pub fn mremap(
-    old_address: *mut u8,
-    old_size: usize,
-    new_size: usize,
-    flags: c_int,
-) -> Result<*mut u8, Error> {
-    unsafe { syscall!(MREMAP, old_address, old_size, new_size, flags) }
-        .to_result_and(|n| n as *mut u8)
+    syscall!(MUNMAP, addr, len).null_result()
 }
 
 pub fn brk(addr: *mut u8) -> Result<*mut u8, Error> {
     unsafe { syscall!(BRK, addr) }.to_result_and(|n| n as *mut u8)
-}
-
-// Require that it non-negative
-pub struct Pid(libc::pid_t);
-
-pub enum SignalWhere {
-    Exactly(usize),
-    CurrentGroup,
-    AllValid,
-    Group(usize),
-}
-pub fn kill(pid: usize, signal: i32) -> Result<(), Error> {
-    unsafe { syscall!(KILL, pid, signal) }.to_result_with(())
 }
 
 // Wraps the rt_sigaction call in the same way that glibc does
@@ -148,11 +125,62 @@ pub fn sigaction(
     .to_result_with(())
 }
 
-//pub fn sigprocmask
+// sigprocmask
 
-//pub fn sigreturn
+// sigreturn
 
-//pub fn ioctl
+#[macro_export]
+macro_rules! ioctl {
+    ($fd:expr, $request:expr, $($arg:expr),*) => {
+        unsafe { syscall!(IOCTL, $fd, $request, $($arg)*) }.usize_result()
+    };
+    ($fd:expr, $request:expr, $($arg:expr),*) => {
+        ioctl!($fd, $request, $($arg)*)
+    };
+}
+
+pub fn pread64(fd: c_int, buf: &mut [u8], offset: usize) -> Result<usize, Error> {
+    unsafe { syscall!(PREAD64, fd, buf.as_mut_ptr(), buf.len(), offset) }.usize_result()
+}
+
+pub fn pwrite64(fd: c_int, buf: &[u8], offset: usize) -> Result<usize, Error> {
+    unsafe { syscall!(PWRITE64, fd, buf.as_ptr(), buf.len(), offset) }.usize_result()
+}
+
+// readv
+//
+// writev
+//
+// access
+//
+// pipe
+//
+// select
+//
+// sched_yield
+
+pub fn mremap(
+    old_address: *mut u8,
+    old_size: usize,
+    new_size: usize,
+    flags: c_int,
+) -> Result<*mut u8, Error> {
+    unsafe { syscall!(MREMAP, old_address, old_size, new_size, flags) }
+        .to_result_and(|n| n as *mut u8)
+}
+
+// Require that it non-negative
+pub struct Pid(libc::pid_t);
+
+pub enum SignalWhere {
+    Exactly(usize),
+    CurrentGroup,
+    AllValid,
+    Group(usize),
+}
+pub fn kill(pid: usize, signal: i32) -> Result<(), Error> {
+    unsafe { syscall!(KILL, pid, signal) }.to_result_with(())
+}
 
 pub fn exit(error_code: c_int) {
     unsafe {
@@ -218,12 +246,18 @@ pub fn winsize() -> Result<libc::winsize, Error> {
     }
 }
 
-trait SyscallRet {
+trait SyscallRet: Sized {
     fn to_result_with<T>(self, t: T) -> Result<T, Error>;
     fn to_result_and<T, F>(self, f: F) -> Result<T, Error>
     where
         F: FnOnce(Self) -> T,
         Self: Sized;
+
+    fn usize_result(self) -> Result<usize, Error>;
+
+    fn null_result(self) -> Result<(), Error> {
+        self.to_result_with(())
+    }
 }
 
 impl SyscallRet for usize {
@@ -247,5 +281,9 @@ impl SyscallRet for usize {
         } else {
             Ok(f(self))
         }
+    }
+
+    fn usize_result(self) -> Result<usize, Error> {
+        self.to_result_and(|n| n)
     }
 }
