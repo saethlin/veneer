@@ -1,6 +1,7 @@
-pub struct Error(pub isize);
+pub struct Error(pub libc::c_int);
 
 impl Error {
+    #[inline]
     pub fn msg(&self) -> &'static str {
         ERROR_MESSAGES
             .get(self.0 as usize)
@@ -146,18 +147,21 @@ static ERROR_MESSAGES: [&str; 134] = [
 ];
 
 impl PartialEq<i32> for Error {
+    #[inline]
     fn eq(&self, other: &i32) -> bool {
-        self.0 == *other as isize
+        self.0 == *other
     }
 }
 
 impl core::fmt::Debug for Error {
+    #[inline]
     fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         write!(f, "{}", self.msg())
     }
 }
 
 impl core::fmt::Display for Error {
+    #[inline]
     fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         write!(f, "{}", self.msg())
     }
@@ -175,7 +179,7 @@ mod tests {
             let libc_error = unsafe { CStr::from_ptr(libc::strerror(i)) };
 
             let mut veneer_error = std::string::String::new();
-            write!(veneer_error, "{}", Error(i as isize)).unwrap();
+            write!(veneer_error, "{}", Error(i)).unwrap();
 
             assert_eq!(libc_error, veneer_error.as_str());
         }

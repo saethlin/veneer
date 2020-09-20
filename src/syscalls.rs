@@ -3,17 +3,19 @@ use core::{marker::PhantomData, mem};
 use libc::c_int;
 use sc::syscall;
 
+#[inline]
 pub fn read(fd: c_int, bytes: &mut [u8]) -> Result<usize, Error> {
     unsafe { syscall!(READ, fd, bytes.as_ptr(), bytes.len()) }.usize_result()
 }
 
+#[inline]
 pub fn write(fd: c_int, bytes: &[u8]) -> Result<usize, Error> {
     unsafe { syscall!(WRITE, fd, bytes.as_ptr(), bytes.len()) }.usize_result()
 }
 
 // For directories RDONLY | DIRECTORY | CLOEXEC
 bitflags::bitflags! {
-    pub struct OPEN: libc::c_int {
+    pub struct OpenFlags: libc::c_int {
         const RDONLY = libc::O_RDONLY;
         const WRONLY = libc::O_WRONLY;
         const RDWR = libc::O_RDWR;
@@ -36,14 +38,39 @@ bitflags::bitflags! {
         const TRUNC = libc::O_TRUNC;
     }
 }
-pub fn open(path: CStr, flags: OPEN) -> Result<c_int, Error> {
-    unsafe { syscall!(OPEN, path.as_ptr(), flags.bits) }.to_result_and(|n| n as c_int)
+
+bitflags::bitflags! {
+    pub struct OpenMode: libc::c_uint {
+        const RWXU = libc::S_IRWXU;
+        const RUSR = libc::S_IRUSR;
+        const WUSR = libc::S_IWUSR;
+        const XUSR = libc::S_IXUSR;
+        const RWXG = libc::S_IRWXG;
+        const RGRP = libc::S_IRGRP;
+        const WGRP = libc::S_IWGRP;
+        const XGRP = libc::S_IXGRP;
+        const RWXO = libc::S_IRWXO;
+        const ROTH = libc::S_IROTH;
+        const WOTH = libc::S_IWOTH;
+        const XOTH = libc::S_IXOTH;
+        const SUID = libc::S_ISUID;
+        const SGID = libc::S_ISGID;
+        const SVTX = libc::S_ISVTX;
+    }
 }
 
+#[inline]
+pub fn open(path: CStr, flags: OpenFlags, mode: OpenMode) -> Result<c_int, Error> {
+    unsafe { syscall!(OPEN, path.as_ptr(), flags.bits(), mode.bits()) }
+        .to_result_and(|n| n as c_int)
+}
+
+#[inline]
 pub fn close(fd: c_int) -> Result<(), Error> {
     unsafe { syscall!(CLOSE, fd) }.null_result()
 }
 
+#[inline]
 pub fn stat(path: CStr) -> Result<libc::stat, Error> {
     unsafe {
         let mut status: libc::stat = mem::zeroed();
@@ -51,6 +78,7 @@ pub fn stat(path: CStr) -> Result<libc::stat, Error> {
     }
 }
 
+#[inline]
 pub fn fstat(fd: c_int) -> Result<libc::stat, Error> {
     unsafe {
         let mut status: libc::stat = mem::zeroed();
@@ -58,6 +86,7 @@ pub fn fstat(fd: c_int) -> Result<libc::stat, Error> {
     }
 }
 
+#[inline]
 pub fn lstat(path: CStr) -> Result<libc::stat, Error> {
     unsafe {
         let mut status: libc::stat = mem::zeroed();
@@ -65,6 +94,7 @@ pub fn lstat(path: CStr) -> Result<libc::stat, Error> {
     }
 }
 
+#[inline]
 pub fn poll(fds: &mut [libc::pollfd], timeout: c_int) -> Result<usize, Error> {
     unsafe { syscall!(POLL, fds.as_ptr(), fds.len(), timeout) }.usize_result()
 }
@@ -74,6 +104,8 @@ pub enum SeekFrom {
     End,
     Current,
 }
+
+#[inline]
 pub fn lseek(fd: c_int, seek_mode: SeekFrom, offset: usize) -> Result<usize, Error> {
     let seek_mode = match seek_mode {
         SeekFrom::Start => libc::SEEK_SET,
@@ -83,7 +115,8 @@ pub fn lseek(fd: c_int, seek_mode: SeekFrom, offset: usize) -> Result<usize, Err
     unsafe { syscall!(LSEEK, fd, seek_mode, offset) }.usize_result()
 }
 
-pub unsafe fn mmap(
+#[inline]
+pub fn mmap(
     addr: *mut u8,
     len: usize,
     prot: i32,
@@ -91,23 +124,30 @@ pub unsafe fn mmap(
     fd: i32,
     offset: isize,
 ) -> Result<*mut u8, Error> {
-    syscall!(MMAP, addr, len, prot, flags, fd, offset).to_result_and(|n| n as *mut u8)
+    unsafe { syscall!(MMAP, addr, len, prot, flags, fd, offset) }.to_result_and(|n| n as *mut u8)
 }
 
-pub unsafe fn mprotect(addr: *mut u8, len: usize, protection: libc::c_int) -> Result<(), Error> {
-    syscall!(MPROTECT, addr, len, protection).null_result()
+#[inline]
+pub fn mprotect(memory: &[u8], protection: libc::c_int) -> Result<(), Error> {
+    unsafe { syscall!(MPROTECT, memory.as_ptr(), memory.len(), protection) }.null_result()
 }
 
+/// # Safety
+///
+/// The specified memory region must not be used after this function is called
+#[inline]
 pub unsafe fn munmap(addr: *mut u8, len: usize) -> Result<(), Error> {
     syscall!(MUNMAP, addr, len).null_result()
 }
 
+#[inline]
 pub fn brk(addr: *mut u8) -> Result<*mut u8, Error> {
     unsafe { syscall!(BRK, addr) }.to_result_and(|n| n as *mut u8)
 }
 
 // Wraps the rt_sigaction call in the same way that glibc does
 // So I guess there's no way to use normal signals, only realtime signals?
+#[inline]
 pub fn sigaction(
     signal: c_int,
     action: &libc::sigaction,
@@ -139,10 +179,12 @@ macro_rules! ioctl {
     };
 }
 
+#[inline]
 pub fn pread64(fd: c_int, buf: &mut [u8], offset: usize) -> Result<usize, Error> {
     unsafe { syscall!(PREAD64, fd, buf.as_mut_ptr(), buf.len(), offset) }.usize_result()
 }
 
+#[inline]
 pub fn pwrite64(fd: c_int, buf: &[u8], offset: usize) -> Result<usize, Error> {
     unsafe { syscall!(PWRITE64, fd, buf.as_ptr(), buf.len(), offset) }.usize_result()
 }
@@ -155,11 +197,13 @@ pub struct IoVec<'a> {
     _danny: PhantomData<&'a mut u8>,
 }
 
-pub fn readv<'a, 'b>(fd: c_int, iovec: &'b mut [IoVec<'a>]) -> Result<usize, Error> {
+#[inline]
+pub fn readv<'a>(fd: c_int, iovec: &'_ mut [IoVec<'a>]) -> Result<usize, Error> {
     unsafe { syscall!(READV, fd, iovec.as_mut_ptr(), iovec.len()) }.usize_result()
 }
 
-pub fn writev<'a, 'b>(fd: c_int, iovec: &'b [IoVec<'a>]) -> Result<usize, Error> {
+#[inline]
+pub fn writev<'a>(fd: c_int, iovec: &'_ [IoVec<'a>]) -> Result<usize, Error> {
     unsafe { syscall!(READV, fd, iovec.as_ptr(), iovec.len()) }.usize_result()
 }
 
@@ -172,15 +216,18 @@ bitflags::bitflags! {
     }
 }
 
+#[inline]
 pub fn access(pathname: CStr, mode: Mode) -> Result<(), Error> {
     unsafe { syscall!(ACCESS, pathname.as_ptr(), mode.bits()) }.null_result()
 }
 
+#[inline]
 pub fn pipe() -> Result<[c_int; 2], Error> {
     let mut pipefd: [c_int; 2] = [0, 0];
     unsafe { syscall!(PIPE, pipefd.as_mut_ptr()) }.to_result_with(pipefd)
 }
 
+#[inline]
 pub fn select(
     nfds: c_int,
     readfds: &mut libc::fd_set,
@@ -201,10 +248,12 @@ pub fn select(
     .to_result_and(|n| n as c_int)
 }
 
+#[inline]
 pub fn sched_yield() -> Result<(), Error> {
     unsafe { syscall!(SCHED_YIELD) }.null_result()
 }
 
+#[inline]
 pub fn mremap(
     old_address: *mut u8,
     old_size: usize,
@@ -223,13 +272,15 @@ bitflags::bitflags! {
     }
 }
 
+#[inline]
 pub fn msync(memory: &[u8], flags: MSync) -> Result<(), Error> {
     unsafe { syscall!(MSYNC, memory.as_ptr(), memory.len(), flags.bits()) }.null_result()
 }
 
+#[inline]
 pub fn mincore(memory: &[u8], status: &mut [u8]) -> Result<(), Error> {
     if status.len() < (memory.len() + 4096 - 1) / 4096 {
-        return Err(Error(libc::EINVAL as isize));
+        return Err(Error(libc::EINVAL));
     }
     unsafe { syscall!(MINCORE, memory.as_ptr(), memory.len(), status.as_mut_ptr()) }.null_result()
 }
@@ -258,6 +309,7 @@ bitflags::bitflags! {
     }
 }
 
+#[inline]
 pub fn madvise(memory: &[u8], advice: Advice) -> Result<(), Error> {
     unsafe { syscall!(MADVISE, memory.as_ptr(), memory.len(), advice.bits()) }.null_result()
 }
@@ -273,6 +325,7 @@ bitflags::bitflags! {
     }
 }
 
+#[inline]
 pub fn shmget(key: libc::key_t, size: usize, shmflg: ShmFlags) -> Result<libc::key_t, Error> {
     unsafe { syscall!(SHMGET, key, size, shmflg.bits()) }.to_result_and(|key| key as libc::key_t)
 }
@@ -333,6 +386,7 @@ pub fn shmget(key: libc::key_t, size: usize, shmflg: ShmFlags) -> Result<libc::k
 //
 // execve
 
+#[inline]
 pub fn exit(error_code: c_int) {
     unsafe {
         syscall!(EXIT, error_code);
@@ -350,12 +404,61 @@ pub enum SignalWhere {
     AllValid,
     Group(usize),
 }
+#[inline]
 pub fn kill(pid: usize, signal: i32) -> Result<(), Error> {
     unsafe { syscall!(KILL, pid, signal) }.null_result()
 }
 
 // uname
 
+pub enum FutexOp<'a> {
+    Wait {
+        expected: c_int,
+        timeout: Option<libc::timespec>,
+    },
+    Wake {
+        wake_at_most: c_int,
+    },
+    Requeue {
+        wake_at_most: c_int,
+        requeue_onto: &'a mut c_int,
+        max_to_requeue: c_int,
+    },
+}
+
+#[inline]
+pub fn futex<'a>(lock: &mut c_int, op: FutexOp<'a>, private: bool) -> Result<(), Error> {
+    let lock = lock as *mut c_int;
+    let private = if private { libc::FUTEX_PRIVATE_FLAG } else { 0 };
+    unsafe {
+        match op {
+            FutexOp::Wait { expected, timeout } => {
+                let timeout = timeout
+                    .map(|mut t| &mut t as *mut libc::timespec)
+                    .unwrap_or(core::ptr::null_mut());
+                syscall!(FUTEX, lock, libc::FUTEX_WAIT | private, expected, timeout)
+            }
+            FutexOp::Wake { wake_at_most } => {
+                syscall!(FUTEX, lock, libc::FUTEX_WAKE | private, wake_at_most)
+            }
+            FutexOp::Requeue {
+                wake_at_most,
+                requeue_onto,
+                max_to_requeue,
+            } => syscall!(
+                FUTEX,
+                lock,
+                libc::FUTEX_REQUEUE | private,
+                wake_at_most,
+                max_to_requeue,
+                requeue_onto as *mut c_int
+            ),
+        }
+    }
+    .null_result()
+}
+
+#[inline]
 pub fn fstatat(fd: c_int, name: CStr) -> Result<libc::stat64, Error> {
     unsafe {
         let mut stats = mem::zeroed();
@@ -370,6 +473,7 @@ pub fn fstatat(fd: c_int, name: CStr) -> Result<libc::stat64, Error> {
     }
 }
 
+#[inline]
 pub fn lstatat(fd: c_int, name: CStr) -> Result<libc::stat64, Error> {
     unsafe {
         let mut stats = mem::zeroed();
@@ -384,14 +488,17 @@ pub fn lstatat(fd: c_int, name: CStr) -> Result<libc::stat64, Error> {
     }
 }
 
+#[inline]
 pub fn getdents64(fd: c_int, buf: &mut [u8]) -> Result<usize, Error> {
     unsafe { syscall!(GETDENTS64, fd, buf.as_mut_ptr(), buf.len()) }.to_result_and(|n| n)
 }
 
+#[inline]
 pub fn faccessat(fd: c_int, name: CStr, mode: c_int) -> Result<(), Error> {
     unsafe { syscall!(FACCESSAT, fd, name.as_ptr(), mode) }.null_result()
 }
 
+#[inline]
 pub fn readlinkat<'a>(fd: c_int, name: CStr, buf: &'a mut [u8]) -> Result<&'a [u8], Error> {
     match unsafe { syscall!(READLINKAT, fd, name.as_ptr(), buf.as_ptr(), buf.len()) }
         .to_result_and(|n| n)
@@ -401,6 +508,7 @@ pub fn readlinkat<'a>(fd: c_int, name: CStr, buf: &'a mut [u8]) -> Result<&'a [u
     }
 }
 
+#[inline]
 pub fn winsize() -> Result<libc::winsize, Error> {
     unsafe {
         let mut winsize: libc::winsize = mem::zeroed();
@@ -423,21 +531,24 @@ trait SyscallRet: Sized {
 
     fn usize_result(self) -> Result<usize, Error>;
 
+    #[inline]
     fn null_result(self) -> Result<(), Error> {
         self.to_result_with(())
     }
 }
 
 impl SyscallRet for usize {
+    #[inline]
     fn to_result_with<T>(self, t: T) -> Result<T, Error> {
         let ret = self as isize;
         if ret < 0 {
-            Err(Error(-ret))
+            Err(Error(-ret as c_int))
         } else {
             Ok(t)
         }
     }
 
+    #[inline]
     fn to_result_and<T, F>(self, f: F) -> Result<T, Error>
     where
         F: FnOnce(Self) -> T,
@@ -445,12 +556,13 @@ impl SyscallRet for usize {
     {
         let ret = self as isize;
         if ret < 0 {
-            Err(Error(-ret))
+            Err(Error(-ret as c_int))
         } else {
             Ok(f(self))
         }
     }
 
+    #[inline]
     fn usize_result(self) -> Result<usize, Error> {
         self.to_result_and(|n| n)
     }

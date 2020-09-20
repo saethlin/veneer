@@ -1,4 +1,8 @@
-use crate::{syscalls, CStr};
+use crate::{
+    syscalls,
+    syscalls::{OpenFlags, OpenMode},
+    CStr,
+};
 use libc::c_int;
 
 pub struct Directory {
@@ -6,17 +10,23 @@ pub struct Directory {
 }
 
 impl<'a> Directory {
+    #[inline]
     pub fn open(path: CStr) -> Result<Self, crate::Error> {
-        use syscalls::OPEN;
         Ok(Self {
-            fd: syscalls::open(path, OPEN::RDONLY | OPEN::DIRECTORY | OPEN::CLOEXEC)?,
+            fd: syscalls::open(
+                path,
+                OpenFlags::RDONLY | OpenFlags::DIRECTORY | OpenFlags::CLOEXEC,
+                OpenMode::empty(),
+            )?,
         })
     }
 
+    #[inline]
     pub fn raw_fd(&self) -> c_int {
         self.fd
     }
 
+    #[inline]
     pub fn read(&self) -> Result<DirectoryContents, crate::Error> {
         use alloc::alloc::{alloc, realloc, Layout};
         unsafe {
@@ -41,7 +51,7 @@ impl<'a> Directory {
                 bytes_used += syscalls::getdents64(
                     self.fd,
                     core::slice::from_raw_parts_mut(
-                        ptr.offset(bytes_used as isize),
+                        ptr.add(bytes_used),
                         layout.size() - bytes_used,
                     ),
                 )?;
@@ -57,6 +67,7 @@ impl<'a> Directory {
 }
 
 impl Drop for Directory {
+    #[inline]
     fn drop(&mut self) {
         let _ = syscalls::close(self.fd);
     }
@@ -69,6 +80,7 @@ pub struct DirectoryContents {
 }
 
 impl DirectoryContents {
+    #[inline]
     pub fn iter(&self) -> IterDir {
         IterDir {
             contents: unsafe { core::slice::from_raw_parts(self.ptr, self.len) },
@@ -78,6 +90,7 @@ impl DirectoryContents {
 }
 
 impl Drop for DirectoryContents {
+    #[inline]
     fn drop(&mut self) {
         unsafe {
             alloc::alloc::dealloc(self.ptr as *mut u8, self.layout);
@@ -93,6 +106,7 @@ pub struct IterDir<'a> {
 impl<'a> Iterator for IterDir<'a> {
     type Item = DirEntry<'a>;
 
+    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         unsafe {
             if self.offset < self.contents.len() as isize {
@@ -108,6 +122,7 @@ impl<'a> Iterator for IterDir<'a> {
         }
     }
 
+    #[inline]
     fn size_hint(&self) -> (usize, Option<usize>) {
         (
             self.contents.len() / core::mem::size_of::<libc::dirent64>(),
@@ -124,18 +139,22 @@ pub struct DirEntry<'a> {
 }
 
 impl<'a> DirEntry<'a> {
+    #[inline]
     pub fn inode(&self) -> libc::c_ulong {
         self.raw_dirent.d_ino
     }
 
+    #[inline]
     pub fn name(&self) -> CStr {
         unsafe { CStr::from_ptr(self.raw_dirent.d_name.as_ptr()) }
     }
 
+    #[inline]
     pub fn name_ptr(&self) -> *const libc::c_char {
         self.raw_dirent.d_name.as_ptr()
     }
 
+    #[inline]
     pub fn d_type(&self) -> DType {
         match self.raw_dirent.d_type {
             0 => DType::UNKNOWN,
