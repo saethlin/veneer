@@ -156,14 +156,14 @@ impl PartialEq<i32> for Error {
 impl core::fmt::Debug for Error {
     #[inline]
     fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
-        write!(f, "{}", self.msg())
+        f.write_str(self.msg())
     }
 }
 
 impl core::fmt::Display for Error {
     #[inline]
     fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
-        write!(f, "{}", self.msg())
+        f.write_str(self.msg())
     }
 }
 

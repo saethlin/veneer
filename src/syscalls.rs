@@ -397,6 +397,9 @@ bitflags::bitflags! {
     }
 }
 
+/// # Safety
+///
+/// The memory pointed to by stack is given up to the thread and should be part of its own mapping
 #[inline]
 pub unsafe fn clone(
     flags: CloneFlags,
