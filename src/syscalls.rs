@@ -345,9 +345,12 @@ pub fn shmget(key: libc::key_t, size: usize, shmflg: ShmFlags) -> Result<libc::k
 // alarm
 //
 // setitimer
-//
-// getpid
-//
+
+#[inline]
+pub fn getpid() -> libc::pid_t {
+    unsafe { syscall!(GETPID) as libc::pid_t }
+}
+
 // sendfile
 //
 // socket
@@ -379,6 +382,40 @@ pub fn shmget(key: libc::key_t, size: usize, shmflg: ShmFlags) -> Result<libc::k
 // setsockopt
 //
 // getsockopt
+
+bitflags::bitflags! {
+    pub struct CloneFlags: i32 {
+        const VM = libc::CLONE_VM;
+        const FS = libc::CLONE_FS;
+        const FILES = libc::CLONE_FILES;
+        const SIGHAND = libc::CLONE_SIGHAND;
+        const THREAD = libc::CLONE_THREAD;
+        const SYSVSEM = libc::CLONE_SYSVSEM;
+        const SETTLS = libc::CLONE_SETTLS;
+        const PARENT_SETTID = libc::CLONE_PARENT_SETTID;
+        const CHILD_CLEARTID = libc::CLONE_CHILD_CLEARTID;
+    }
+}
+
+#[inline]
+pub unsafe fn clone(
+    flags: CloneFlags,
+    stack: *mut u8,
+    parent_tid: &mut libc::pid_t,
+    child_tid: &mut libc::pid_t,
+    tls: &mut u8,
+) -> Result<libc::pid_t, Error> {
+    syscall!(
+        CLONE,
+        flags.bits(),
+        stack,
+        parent_tid as *mut libc::pid_t,
+        tls as *mut u8,
+        child_tid as *mut libc::pid_t
+    )
+    .to_result_and(|v| v as libc::pid_t)
+}
+
 //
 // clone
 //
