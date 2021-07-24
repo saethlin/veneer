@@ -13,7 +13,8 @@ pub struct File(c_int);
 impl File {
     #[inline]
     pub fn open(path: &[u8]) -> Result<Self, Error> {
-        Ok(Self(syscalls::open(
+        Ok(Self(syscalls::openat(
+            libc::AT_FDCWD,
             CStr::from_bytes(path),
             OpenFlags::RDONLY | OpenFlags::CLOEXEC,
             OpenMode::empty(),
@@ -22,7 +23,8 @@ impl File {
 
     #[inline]
     pub fn create(path: &[u8]) -> Result<Self, Error> {
-        Ok(Self(syscalls::open(
+        Ok(Self(syscalls::openat(
+            libc::AT_FDCWD,
             CStr::from_bytes(path),
             OpenFlags::RDWR | OpenFlags::CREAT | OpenFlags::CLOEXEC,
             OpenMode::RUSR
@@ -71,4 +73,23 @@ pub fn read(path: &[u8]) -> Result<Vec<u8>, Error> {
         }
     }
     Ok(bytes)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn files() {
+        let expected_contents = &b"test contents\n"[..];
+
+        let mut file = File::create(b"/tmp/test.foo\0").unwrap();
+        file.write(expected_contents).unwrap();
+
+        let mut contents = [0; 64];
+        let mut file = File::open(b"/tmp/test.foo\0").unwrap();
+        let bytes_read = file.read(&mut contents).unwrap();
+
+        assert_eq!(&contents[..bytes_read], expected_contents);
+    }
 }

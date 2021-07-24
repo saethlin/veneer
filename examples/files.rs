@@ -1,7 +1,11 @@
+#![no_std]
+#![feature(lang_items, alloc_error_handler, start)]
+
+veneer::prelude!();
+
 use veneer::{
     fs::File,
     io::{Read, Write},
-    print,
 };
 
 fn main() {
@@ -12,5 +16,5 @@ fn main() {
     let mut file = File::open(b"/tmp/test.foo\0").unwrap();
     let bytes_read = file.read(&mut contents).unwrap();
 
-    print(&contents[..bytes_read]);
+    println!("{:?}", &contents[..bytes_read]);
 }

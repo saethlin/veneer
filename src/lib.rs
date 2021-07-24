@@ -11,48 +11,90 @@ core::compile_error!("This library is linux-specific");
 
 extern crate alloc;
 
+mod allocator;
 mod cstr;
 pub mod directory;
+pub mod env;
 mod error;
+pub mod fmt;
 pub mod fs;
 pub mod io;
+pub mod net;
+mod spinlock;
 pub mod syscalls;
 
+pub use allocator::Allocator;
 pub use cstr::CStr;
 pub use directory::Directory;
 pub use error::Error;
 
-use core::alloc::{GlobalAlloc, Layout};
-
-pub struct LibcAllocator;
-
-unsafe impl GlobalAlloc for LibcAllocator {
-    #[inline]
-    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        libc::malloc(layout.size()) as *mut u8
-    }
-
-    #[inline]
-    unsafe fn dealloc(&self, ptr: *mut u8, _layout: Layout) {
-        libc::free(ptr as *mut libc::c_void)
-    }
-
-    #[inline]
-    unsafe fn realloc(&self, ptr: *mut u8, _layout: Layout, new_size: usize) -> *mut u8 {
-        libc::realloc(ptr as *mut libc::c_void, new_size) as *mut u8
-    }
-
-    #[inline]
-    unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
-        libc::calloc(layout.size(), 1) as *mut u8
-    }
-}
-
 #[cfg(test)]
 #[global_allocator]
-static ALLOC: LibcAllocator = LibcAllocator;
+static ALLOC: Allocator = Allocator::new();
 
-#[inline]
-pub fn print(bytes: &[u8]) {
-    let _ = syscalls::write(libc::STDOUT_FILENO, bytes);
+#[macro_export]
+macro_rules! print {
+    ($($args:tt)*) => {
+        core::fmt::write(&mut veneer::io::Stdout, format_args!($($args)*)).unwrap();
+    };
+}
+
+#[macro_export]
+macro_rules! println {
+    ($format:expr, $($args:tt)*) => {
+        core::fmt::write(&mut veneer::io::Stdout, format_args!(concat!($format, "\n"), $($args)*)).unwrap();
+    };
+}
+
+#[macro_export]
+macro_rules! eprint {
+    ($($args:tt)*) => {
+        core::fmt::write(&mut veneer::io::Stderr, format_args!($($args)*)).unwrap();
+    };
+}
+
+#[macro_export]
+macro_rules! eprintln {
+    ($format:expr, $($args:tt)*) => {
+        core::fmt::write(&mut veneer::io::Stderr, format_args!(concat!($format, "\n"), $($args)*)).unwrap();
+    };
+}
+
+#[macro_export]
+macro_rules! prelude {
+    () => {
+        #[lang = "eh_personality"]
+        #[no_mangle]
+        pub extern "C" fn rust_eh_personality() {}
+
+        #[panic_handler]
+        fn panic(info: &core::panic::PanicInfo) -> ! {
+            veneer::eprint!("{}", info);
+            let _ = veneer::syscalls::kill(0, libc::SIGABRT);
+            veneer::syscalls::exit(-1);
+            loop {}
+        }
+
+        #[alloc_error_handler]
+        fn alloc_error(layout: core::alloc::Layout) -> ! {
+            veneer::eprint!(
+                "Unable to allocate, size: {}\n",
+                itoa::Buffer::new().format(layout.size())
+            );
+            let _ = veneer::syscalls::kill(0, libc::SIGABRT);
+            veneer::syscalls::exit(-1);
+            loop {}
+        }
+
+        #[global_allocator]
+        static ALLOC: veneer::Allocator = veneer::Allocator::new();
+
+        use veneer::{eprint, eprintln, print, println};
+
+        #[start]
+        fn start(argc: isize, argp: *const *const u8) -> isize {
+            main();
+            0
+        }
+    };
 }

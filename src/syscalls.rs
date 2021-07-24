@@ -60,8 +60,8 @@ bitflags::bitflags! {
 }
 
 #[inline]
-pub fn open(path: CStr, flags: OpenFlags, mode: OpenMode) -> Result<c_int, Error> {
-    unsafe { syscall!(OPEN, path.as_ptr(), flags.bits(), mode.bits()) }
+pub fn openat(at_fd: c_int, path: CStr, flags: OpenFlags, mode: OpenMode) -> Result<c_int, Error> {
+    unsafe { syscall!(OPENAT, at_fd, path.as_ptr(), flags.bits(), mode.bits()) }
         .to_result_and(|n| n as c_int)
 }
 
@@ -132,6 +132,8 @@ pub fn mprotect(memory: &[u8], protection: libc::c_int) -> Result<(), Error> {
     unsafe { syscall!(MPROTECT, memory.as_ptr(), memory.len(), protection) }.null_result()
 }
 
+/// munmap
+///
 /// # Safety
 ///
 /// The specified memory region must not be used after this function is called
@@ -546,6 +548,15 @@ pub fn readlinkat<'a>(fd: c_int, name: CStr, buf: &'a mut [u8]) -> Result<&'a [u
         Ok(n) => Ok(buf.get(..n).unwrap_or_default()),
         Err(e) => Err(e),
     }
+}
+
+#[inline]
+pub fn gettimeofday() -> Result<libc::timeval, Error> {
+    let mut tv = libc::timeval {
+        tv_sec: 0,
+        tv_usec: 0,
+    };
+    unsafe { syscall!(GETTIMEOFDAY, &mut tv as *mut libc::timeval, 0) }.to_result_with(tv)
 }
 
 #[inline]

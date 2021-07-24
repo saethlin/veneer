@@ -1,14 +1,16 @@
-use crate::Error;
+pub use crate::Error;
+
+pub type Result<T> = core::result::Result<T, Error>;
 
 pub trait Read {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize, Error>;
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize>;
 }
 
 pub trait Write {
-    fn write(&mut self, buf: &[u8]) -> Result<usize, Error>;
+    fn write(&mut self, buf: &[u8]) -> Result<usize>;
 
     #[inline]
-    fn write_all(&mut self, mut buf: &[u8]) -> Result<(), Error> {
+    fn write_all(&mut self, mut buf: &[u8]) -> Result<()> {
         while !buf.is_empty() {
             match self.write(buf) {
                 Ok(0) => {
@@ -19,6 +21,36 @@ pub trait Write {
                 Err(e) => return Err(e),
             }
         }
+        Ok(())
+    }
+}
+
+pub struct Stdout;
+
+impl Write for Stdout {
+    fn write(&mut self, buf: &[u8]) -> Result<usize> {
+        crate::syscalls::write(libc::STDOUT_FILENO, buf)
+    }
+}
+
+impl core::fmt::Write for Stdout {
+    fn write_str(&mut self, s: &str) -> core::fmt::Result {
+        self.write(s.as_bytes()).unwrap();
+        Ok(())
+    }
+}
+
+pub struct Stderr;
+
+impl Write for Stderr {
+    fn write(&mut self, buf: &[u8]) -> Result<usize> {
+        crate::syscalls::write(libc::STDERR_FILENO, buf)
+    }
+}
+
+impl core::fmt::Write for Stderr {
+    fn write_str(&mut self, s: &str) -> core::fmt::Result {
+        self.write(s.as_bytes()).unwrap();
         Ok(())
     }
 }

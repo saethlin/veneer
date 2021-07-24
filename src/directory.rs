@@ -13,7 +13,8 @@ impl<'a> Directory {
     #[inline]
     pub fn open(path: CStr) -> Result<Self, crate::Error> {
         Ok(Self {
-            fd: syscalls::open(
+            fd: syscalls::openat(
+                libc::AT_FDCWD,
                 path,
                 OpenFlags::RDONLY | OpenFlags::DIRECTORY | OpenFlags::CLOEXEC,
                 OpenMode::empty(),
@@ -30,24 +31,39 @@ impl<'a> Directory {
     pub fn read(&self) -> Result<DirectoryContents, crate::Error> {
         use alloc::alloc::{alloc, realloc, Layout};
         unsafe {
-            let chunk_size = 32768;
+            let initial_size = 4096;
 
             let mut layout = Layout::from_size_align_unchecked(
-                chunk_size,
+                initial_size,
                 core::mem::align_of::<libc::dirent64>(),
             );
             let mut ptr = alloc(layout);
-            let mut bytes_used =
-                syscalls::getdents64(self.fd, core::slice::from_raw_parts_mut(ptr, layout.size()))?;
-            let mut previous_bytes_used = 0;
+
+            // First, read using the first half of the allocation
+            let mut previous_bytes_used = syscalls::getdents64(
+                self.fd,
+                core::slice::from_raw_parts_mut(ptr, layout.size() / 2),
+            )?;
+            let mut bytes_used = previous_bytes_used;
+
+            // If we read something, try using the rest of the allocation
+            if previous_bytes_used > 0 {
+                bytes_used += syscalls::getdents64(
+                    self.fd,
+                    core::slice::from_raw_parts_mut(
+                        ptr.add(previous_bytes_used),
+                        layout.size() - previous_bytes_used,
+                    ),
+                )?;
+            }
+            // Then, if we read something on the second time, start reallocating.
 
             // Must run this loop until getdents64 returns no new entries
-            // Yes, it looks silly but some filesystems (at least sshfs) rely on this behavior
+            // Yes, even if there is plenty of unused space. Some filesystems (at least sshfs) rely on this behavior
             while bytes_used != previous_bytes_used {
                 previous_bytes_used = bytes_used;
-                ptr = realloc(ptr, layout, layout.size() + chunk_size);
-                layout =
-                    Layout::from_size_align_unchecked(layout.size() + chunk_size, layout.align());
+                ptr = realloc(ptr, layout, layout.size() * 2);
+                layout = Layout::from_size_align_unchecked(layout.size() * 2, layout.align());
                 bytes_used += syscalls::getdents64(
                     self.fd,
                     core::slice::from_raw_parts_mut(
@@ -100,7 +116,7 @@ impl Drop for DirectoryContents {
 
 pub struct IterDir<'a> {
     contents: &'a [u8],
-    offset: isize,
+    offset: usize,
 }
 
 impl<'a> Iterator for IterDir<'a> {
@@ -108,17 +124,35 @@ impl<'a> Iterator for IterDir<'a> {
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        unsafe {
-            if self.offset < self.contents.len() as isize {
-                let raw_dirent =
-                    &*(self.contents.as_ptr().offset(self.offset) as *const libc::dirent64);
+        if self.offset < self.contents.len() {
+            unsafe {
+                let start = self.contents.as_ptr().add(self.offset);
+                let inode = start.cast::<u64>().read_unaligned();
+                //let offset = start.add(8).cast::<u64>().read_unaligned();
+                let reclen = start.add(16).cast::<u16>().read_unaligned();
+                let d_type = start.add(18).read_unaligned();
+                let name_ptr = start.add(19);
 
-                self.offset += raw_dirent.d_reclen as isize;
+                self.offset += reclen as usize;
 
-                Some(DirEntry { raw_dirent })
-            } else {
-                None
+                Some(DirEntry {
+                    inode: inode as u64,
+                    name: CStr::from_ptr(name_ptr.cast()),
+                    d_type: match d_type {
+                        0 => DType::UNKNOWN,
+                        1 => DType::FIFO,
+                        2 => DType::CHR,
+                        4 => DType::DIR,
+                        6 => DType::BLK,
+                        8 => DType::REG,
+                        10 => DType::LNK,
+                        12 => DType::SOCK,
+                        _ => DType::UNKNOWN,
+                    },
+                })
             }
+        } else {
+            None
         }
     }
 
@@ -135,42 +169,13 @@ impl<'a> Iterator for IterDir<'a> {
 // this struct smaller and prevents calling strlen if the name is never required.
 #[derive(Clone)]
 pub struct DirEntry<'a> {
-    raw_dirent: &'a libc::dirent64,
-}
-
-impl<'a> DirEntry<'a> {
-    #[inline]
-    pub fn inode(&self) -> libc::c_ulong {
-        self.raw_dirent.d_ino
-    }
-
-    #[inline]
-    pub fn name(&self) -> CStr {
-        unsafe { CStr::from_ptr(self.raw_dirent.d_name.as_ptr()) }
-    }
-
-    #[inline]
-    pub fn name_ptr(&self) -> *const libc::c_char {
-        self.raw_dirent.d_name.as_ptr()
-    }
-
-    #[inline]
-    pub fn d_type(&self) -> DType {
-        match self.raw_dirent.d_type {
-            0 => DType::UNKNOWN,
-            1 => DType::FIFO,
-            2 => DType::CHR,
-            4 => DType::DIR,
-            6 => DType::BLK,
-            8 => DType::REG,
-            10 => DType::LNK,
-            12 => DType::SOCK,
-            _ => DType::UNKNOWN,
-        }
-    }
+    pub inode: libc::c_ulong,
+    pub name: CStr<'a>,
+    pub d_type: DType,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[allow(clippy::upper_case_acronyms)]
 pub enum DType {
     UNKNOWN = 0,
     FIFO = 1,
@@ -200,14 +205,15 @@ mod tests {
                 libc_dirents.push(*entry);
                 entry = libc::readdir64(dirp);
             }
+            libc::closedir(dirp);
         }
 
         for (libc, ven) in libc_dirents.iter().zip(contents.iter()) {
             unsafe {
-                assert_eq!(CStr::from_ptr(libc.d_name.as_ptr()), ven.name());
+                assert_eq!(CStr::from_ptr(libc.d_name.as_ptr().cast()), ven.name);
             }
-            assert_eq!(libc.d_ino, ven.inode());
-            assert_eq!(libc.d_type, ven.d_type() as u8);
+            assert_eq!(libc.d_ino, ven.inode);
+            assert_eq!(libc.d_type, ven.d_type as u8);
         }
     }
 }

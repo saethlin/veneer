@@ -5,14 +5,24 @@ pub struct CStr<'a> {
     bytes: &'a [u8],
 }
 
+impl Default for CStr<'static> {
+    fn default() -> Self {
+        CStr::from_bytes(&[0])
+    }
+}
+
 impl<'a> CStr<'a> {
     /// # Safety
     ///
     /// This function must be called with a pointer to a null-terminated array of bytes
     #[inline]
-    pub unsafe fn from_ptr<'b>(ptr: *const libc::c_char) -> CStr<'b> {
+    pub unsafe fn from_ptr<'b>(ptr: *const u8) -> CStr<'b> {
+        let mut len = 0;
+        while *ptr.add(len) != 0 {
+            len += 1;
+        }
         CStr {
-            bytes: core::slice::from_raw_parts(ptr as *const u8, libc::strlen(ptr) + 1),
+            bytes: core::slice::from_raw_parts(ptr.cast::<u8>(), len + 1),
         }
     }
 
@@ -26,18 +36,25 @@ impl<'a> CStr<'a> {
     }
 
     #[inline]
-    pub fn as_bytes(&self) -> &[u8] {
+    pub fn as_bytes(&self) -> &'a [u8] {
         unsafe { self.bytes.get_unchecked(..self.bytes.len() - 1) }
     }
 
     #[inline]
     pub fn get(&self, i: usize) -> Option<u8> {
-        self.bytes.get(i).cloned()
+        self.bytes.get(i).copied()
     }
 
     #[inline]
-    pub fn as_ptr(&self) -> *const libc::c_char {
-        self.bytes.as_ptr() as *const libc::c_char
+    pub fn as_ptr(&self) -> *const u8 {
+        self.bytes.as_ptr()
+    }
+}
+
+impl<'a> core::ops::Deref for CStr<'a> {
+    type Target = [u8];
+    fn deref(&self) -> &Self::Target {
+        self.as_bytes()
     }
 }
 
