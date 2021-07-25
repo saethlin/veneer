@@ -9,8 +9,24 @@ use core::{
 // Allocates in chunks of 64 bytes. The `usage_mask` is a bitmask that is 1 where something is
 // allocated.
 pub struct SmallAllocator {
-    slab: [u8; 4096],
+    slab: Slab,
     usage_mask: u64,
+}
+
+#[repr(align(64))]
+struct Slab([u8; 4096]);
+
+impl core::ops::Deref for Slab {
+    type Target = [u8];
+    fn deref(&self) -> &[u8] {
+        &self.0[..]
+    }
+}
+
+impl core::ops::DerefMut for Slab {
+    fn deref_mut(&mut self) -> &mut [u8] {
+        &mut self.0[..]
+    }
 }
 
 impl SmallAllocator {
@@ -27,11 +43,17 @@ impl SmallAllocator {
             layout.size() + 64 - remainder
         };
         let blocks = size / 64;
+        assert!(blocks * 64 >= layout.size());
         let my_mask = u64::MAX << (64 - blocks);
 
+        let previously_used_blocks = self.usage_mask.count_ones();
         for i in 0..(64 - blocks) {
             if (my_mask >> i) & (!self.usage_mask) == (my_mask >> i) {
                 self.usage_mask |= my_mask >> i;
+                assert_eq!(
+                    previously_used_blocks + blocks as u32,
+                    self.usage_mask.count_ones()
+                );
                 return self.slab[64 * i..].as_mut_ptr();
             }
         }
@@ -76,7 +98,7 @@ impl Allocator {
         Self {
             cache: SpinLock::new([(false, ptr::null_mut(), 0); 64]),
             small: SpinLock::new(SmallAllocator {
-                slab: [0u8; 4096],
+                slab: Slab([0u8; 4096]),
                 usage_mask: 0u64,
             }),
         }

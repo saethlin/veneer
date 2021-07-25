@@ -99,3 +99,19 @@ impl<'a> fmt::Display for CStr<'a> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloc::vec::Vec;
+
+    #[test]
+    fn cstr_from_ptr() {
+        for len in 0..255 {
+            let mut buf: Vec<u8> = core::iter::repeat(123).take(len).collect();
+            buf.push(0);
+            let the_str = unsafe { CStr::from_ptr(buf.as_ptr()) };
+            assert_eq!(the_str.len(), len as usize);
+        }
+    }
+}

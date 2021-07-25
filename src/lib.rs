@@ -3,7 +3,6 @@
 #![deny(clippy::missing_inline_in_public_items)]
 
 // We need std in test mode to assert
-#[cfg(test)]
 extern crate std;
 
 #[cfg(not(target_os = "linux"))]
@@ -42,7 +41,7 @@ macro_rules! print {
 #[macro_export]
 macro_rules! println {
     ($format:expr, $($args:tt)*) => {
-        core::fmt::write(&mut veneer::io::Stdout, format_args!(concat!($format, "\n"), $($args)*)).unwrap();
+        core::fmt::write(&mut crate::io::Stdout, format_args!(concat!($format, "\n"), $($args)*)).unwrap();
     };
 }
 
