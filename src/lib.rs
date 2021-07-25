@@ -1,8 +1,15 @@
-#![feature(asm)]
 #![no_std]
 #![deny(clippy::missing_inline_in_public_items)]
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::missing_errors_doc,
+    clippy::cast_possible_wrap,
+    clippy::map_unwrap_or,
+    clippy::unseparated_literal_suffix
+)]
 
 // We need std in test mode to assert
+#[cfg(test)]
 extern crate std;
 
 #[cfg(not(target_os = "linux"))]

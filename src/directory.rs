@@ -1,8 +1,11 @@
+use crate::Error;
 use crate::{
     syscalls,
     syscalls::{OpenFlags, OpenMode},
     CStr,
 };
+use alloc::{vec, vec::Vec};
+use core::convert::TryInto;
 use libc::c_int;
 
 pub struct Directory {
@@ -11,7 +14,7 @@ pub struct Directory {
 
 impl<'a> Directory {
     #[inline]
-    pub fn open(path: CStr) -> Result<Self, crate::Error> {
+    pub fn open(path: CStr) -> Result<Self, Error> {
         Ok(Self {
             fd: syscalls::openat(
                 libc::AT_FDCWD,
@@ -28,57 +31,30 @@ impl<'a> Directory {
     }
 
     #[inline]
-    pub fn read(&self) -> Result<DirectoryContents, crate::Error> {
-        use alloc::alloc::{alloc, realloc, Layout};
-        unsafe {
-            let initial_size = 4096;
+    pub fn read(&self) -> Result<DirectoryContents, Error> {
+        let mut contents = vec![0u8; 4096];
 
-            let mut layout = Layout::from_size_align_unchecked(
-                initial_size,
-                core::mem::align_of::<libc::dirent64>(),
-            );
-            let mut ptr = alloc(layout);
+        // First, read using the first half of the allocation
+        let mut previous_bytes_used = syscalls::getdents64(self.fd, &mut contents[..2048])?;
+        let mut bytes_used = previous_bytes_used;
 
-            // First, read using the first half of the allocation
-            let mut previous_bytes_used = syscalls::getdents64(
-                self.fd,
-                core::slice::from_raw_parts_mut(ptr, layout.size() / 2),
-            )?;
-            let mut bytes_used = previous_bytes_used;
-
-            // If we read something, try using the rest of the allocation
-            if previous_bytes_used > 0 {
-                bytes_used += syscalls::getdents64(
-                    self.fd,
-                    core::slice::from_raw_parts_mut(
-                        ptr.add(previous_bytes_used),
-                        layout.size() - previous_bytes_used,
-                    ),
-                )?;
-            }
-            // Then, if we read something on the second time, start reallocating.
-
-            // Must run this loop until getdents64 returns no new entries
-            // Yes, even if there is plenty of unused space. Some filesystems (at least sshfs) rely on this behavior
-            while bytes_used != previous_bytes_used {
-                previous_bytes_used = bytes_used;
-                ptr = realloc(ptr, layout, layout.size() * 2);
-                layout = Layout::from_size_align_unchecked(layout.size() * 2, layout.align());
-                bytes_used += syscalls::getdents64(
-                    self.fd,
-                    core::slice::from_raw_parts_mut(
-                        ptr.add(bytes_used),
-                        layout.size() - bytes_used,
-                    ),
-                )?;
-            }
-
-            Ok(DirectoryContents {
-                ptr,
-                len: bytes_used,
-                layout,
-            })
+        // If we read something, try using the rest of the allocation
+        if previous_bytes_used > 0 {
+            bytes_used += syscalls::getdents64(self.fd, &mut contents[previous_bytes_used..])?;
         }
+        // Then, if we read something on the second time, start reallocating.
+
+        // Must run this loop until getdents64 returns no new entries
+        // Yes, even if there is plenty of unused space. Some filesystems (at least sshfs) rely on this behavior
+        while bytes_used != previous_bytes_used {
+            previous_bytes_used = bytes_used;
+            contents.extend(core::iter::repeat(0).take(contents.capacity()));
+            bytes_used += syscalls::getdents64(self.fd, &mut contents[previous_bytes_used..])?;
+        }
+
+        contents.truncate(bytes_used);
+
+        Ok(DirectoryContents { contents })
     }
 }
 
@@ -90,33 +66,20 @@ impl Drop for Directory {
 }
 
 pub struct DirectoryContents {
-    ptr: *const u8,
-    len: usize,
-    layout: alloc::alloc::Layout,
+    contents: Vec<u8>,
 }
 
 impl DirectoryContents {
     #[inline]
     pub fn iter(&self) -> IterDir {
         IterDir {
-            contents: unsafe { core::slice::from_raw_parts(self.ptr, self.len) },
-            offset: 0,
-        }
-    }
-}
-
-impl Drop for DirectoryContents {
-    #[inline]
-    fn drop(&mut self) {
-        unsafe {
-            alloc::alloc::dealloc(self.ptr as *mut u8, self.layout);
+            remaining: &self.contents[..],
         }
     }
 }
 
 pub struct IterDir<'a> {
-    contents: &'a [u8],
-    offset: usize,
+    remaining: &'a [u8],
 }
 
 impl<'a> Iterator for IterDir<'a> {
@@ -124,43 +87,45 @@ impl<'a> Iterator for IterDir<'a> {
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        if self.offset < self.contents.len() {
-            unsafe {
-                let start = self.contents.as_ptr().add(self.offset);
-                let inode = start.cast::<u64>().read_unaligned();
-                //let offset = start.add(8).cast::<u64>().read_unaligned();
-                let reclen = start.add(16).cast::<u16>().read_unaligned();
-                let d_type = start.add(18).read_unaligned();
-                let name_ptr = start.add(19);
-
-                self.offset += reclen as usize;
-
-                Some(DirEntry {
-                    inode: inode as u64,
-                    name: CStr::from_ptr(name_ptr.cast()),
-                    d_type: match d_type {
-                        0 => DType::UNKNOWN,
-                        1 => DType::FIFO,
-                        2 => DType::CHR,
-                        4 => DType::DIR,
-                        6 => DType::BLK,
-                        8 => DType::REG,
-                        10 => DType::LNK,
-                        12 => DType::SOCK,
-                        _ => DType::UNKNOWN,
-                    },
-                })
-            }
-        } else {
-            None
+        if self.remaining.is_empty() {
+            return None;
         }
+
+        let inode = u64::from_ne_bytes(self.remaining[..8].try_into().unwrap());
+        // We don't need to read the offset member
+        let reclen = u16::from_ne_bytes(self.remaining[16..18].try_into().unwrap());
+        let d_type = self.remaining[18];
+
+        let mut end = 19;
+        while self.remaining[end] != 0 {
+            end += 1;
+        }
+        let name = CStr::from_bytes(&self.remaining[19..end + 1]);
+
+        self.remaining = &self.remaining[reclen as usize..];
+
+        Some(DirEntry {
+            inode: inode as u64,
+            name,
+            d_type: match d_type {
+                0 => DType::UNKNOWN,
+                1 => DType::FIFO,
+                2 => DType::CHR,
+                4 => DType::DIR,
+                6 => DType::BLK,
+                8 => DType::REG,
+                10 => DType::LNK,
+                12 => DType::SOCK,
+                _ => DType::UNKNOWN,
+            },
+        })
     }
 
     #[inline]
     fn size_hint(&self) -> (usize, Option<usize>) {
         (
-            self.contents.len() / core::mem::size_of::<libc::dirent64>(),
-            Some(self.contents.len() / (core::mem::size_of::<libc::dirent64>() - 256)),
+            self.remaining.len() / core::mem::size_of::<libc::dirent64>(),
+            Some(self.remaining.len() / (core::mem::size_of::<libc::dirent64>() - 256)),
         )
     }
 }

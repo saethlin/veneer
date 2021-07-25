@@ -15,7 +15,7 @@ pub fn write(fd: c_int, bytes: &[u8]) -> Result<usize, Error> {
 
 // For directories RDONLY | DIRECTORY | CLOEXEC
 bitflags::bitflags! {
-    pub struct OpenFlags: libc::c_int {
+    pub struct OpenFlags: c_int {
         const RDONLY = libc::O_RDONLY;
         const WRONLY = libc::O_WRONLY;
         const RDWR = libc::O_RDWR;
@@ -99,6 +99,7 @@ pub fn poll(fds: &mut [libc::pollfd], timeout: c_int) -> Result<usize, Error> {
     unsafe { syscall!(POLL, fds.as_ptr(), fds.len(), timeout) }.usize_result()
 }
 
+#[derive(Clone, Copy)]
 pub enum SeekFrom {
     Start,
     End,
@@ -128,7 +129,7 @@ pub fn mmap(
 }
 
 #[inline]
-pub fn mprotect(memory: &[u8], protection: libc::c_int) -> Result<(), Error> {
+pub fn mprotect(memory: &[u8], protection: c_int) -> Result<(), Error> {
     unsafe { syscall!(MPROTECT, memory.as_ptr(), memory.len(), protection) }.null_result()
 }
 
@@ -200,12 +201,12 @@ pub struct IoVec<'a> {
 }
 
 #[inline]
-pub fn readv<'a>(fd: c_int, iovec: &'_ mut [IoVec<'a>]) -> Result<usize, Error> {
+pub fn readv(fd: c_int, iovec: &'_ mut [IoVec<'_>]) -> Result<usize, Error> {
     unsafe { syscall!(READV, fd, iovec.as_mut_ptr(), iovec.len()) }.usize_result()
 }
 
 #[inline]
-pub fn writev<'a>(fd: c_int, iovec: &'_ [IoVec<'a>]) -> Result<usize, Error> {
+pub fn writev(fd: c_int, iovec: &'_ [IoVec<'_>]) -> Result<usize, Error> {
     unsafe { syscall!(READV, fd, iovec.as_ptr(), iovec.len()) }.usize_result()
 }
 
@@ -469,7 +470,7 @@ pub enum FutexOp<'a> {
 }
 
 #[inline]
-pub fn futex<'a>(lock: &mut c_int, op: FutexOp<'a>, private: bool) -> Result<(), Error> {
+pub fn futex(lock: &mut c_int, op: FutexOp<'_>, private: bool) -> Result<(), Error> {
     let lock = lock as *mut c_int;
     let private = if private { libc::FUTEX_PRIVATE_FLAG } else { 0 };
     unsafe {

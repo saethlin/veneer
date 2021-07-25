@@ -1,3 +1,4 @@
+#![allow(clippy::missing_inline_in_public_items)]
 use crate::spinlock::SpinLock;
 use crate::syscalls;
 

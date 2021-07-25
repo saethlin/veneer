@@ -28,12 +28,14 @@ pub trait Write {
 pub struct Stdout;
 
 impl Write for Stdout {
+    #[inline]
     fn write(&mut self, buf: &[u8]) -> Result<usize> {
         crate::syscalls::write(libc::STDOUT_FILENO, buf)
     }
 }
 
 impl core::fmt::Write for Stdout {
+    #[inline]
     fn write_str(&mut self, s: &str) -> core::fmt::Result {
         self.write(s.as_bytes()).unwrap();
         Ok(())
@@ -43,12 +45,14 @@ impl core::fmt::Write for Stdout {
 pub struct Stderr;
 
 impl Write for Stderr {
+    #[inline]
     fn write(&mut self, buf: &[u8]) -> Result<usize> {
         crate::syscalls::write(libc::STDERR_FILENO, buf)
     }
 }
 
 impl core::fmt::Write for Stderr {
+    #[inline]
     fn write_str(&mut self, s: &str) -> core::fmt::Result {
         self.write(s.as_bytes()).unwrap();
         Ok(())

@@ -6,6 +6,7 @@ pub struct CStr<'a> {
 }
 
 impl Default for CStr<'static> {
+    #[inline]
     fn default() -> Self {
         CStr::from_bytes(&[0])
     }
@@ -53,6 +54,7 @@ impl<'a> CStr<'a> {
 
 impl<'a> core::ops::Deref for CStr<'a> {
     type Target = [u8];
+    #[inline]
     fn deref(&self) -> &Self::Target {
         self.as_bytes()
     }
