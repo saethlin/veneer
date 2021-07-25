@@ -1,7 +1,5 @@
 #![allow(clippy::missing_inline_in_public_items)]
-use crate::spinlock::SpinLock;
-use crate::syscalls;
-
+use crate::{spinlock::SpinLock, syscalls};
 use core::{
     alloc::{GlobalAlloc, Layout},
     ptr,

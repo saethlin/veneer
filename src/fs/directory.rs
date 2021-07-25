@@ -1,8 +1,7 @@
-use crate::Error;
 use crate::{
     syscalls,
     syscalls::{OpenFlags, OpenMode},
-    CStr,
+    CStr, Error,
 };
 use alloc::{vec, vec::Vec};
 use core::convert::TryInto;
