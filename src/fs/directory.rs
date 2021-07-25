@@ -157,14 +157,16 @@ mod tests {
     use super::*;
     use alloc::vec::Vec;
 
+    // TODO: Get a directory with more file types
+
     #[test]
     fn read_cwd() {
-        let dir = Directory::open(CStr::from_bytes(b".\0")).unwrap();
+        let dir = Directory::open(CStr::from_bytes(b"/dev\0")).unwrap();
         let contents = dir.read().unwrap();
 
         let mut libc_dirents = Vec::new();
         unsafe {
-            let dirp = libc::opendir(b".\0".as_ptr() as *const libc::c_char);
+            let dirp = libc::opendir(b"/dev\0".as_ptr() as *const libc::c_char);
             let mut entry = libc::readdir64(dirp);
             while !entry.is_null() {
                 libc_dirents.push(*entry);

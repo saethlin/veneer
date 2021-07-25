@@ -7,7 +7,9 @@ use crate::{
 use alloc::{vec, vec::Vec};
 use libc::c_int;
 
-#[derive(Debug)]
+mod directory;
+pub use directory::*;
+
 pub struct File(c_int);
 
 impl File {
@@ -91,5 +93,8 @@ mod tests {
         let bytes_read = file.read(&mut contents).unwrap();
 
         assert_eq!(&contents[..bytes_read], expected_contents);
+
+        let contents = read(b"/tmp/test.foo\0").unwrap();
+        assert_eq!(contents, expected_contents);
     }
 }

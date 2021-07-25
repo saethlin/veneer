@@ -19,7 +19,6 @@ extern crate alloc;
 
 mod allocator;
 mod cstr;
-pub mod directory;
 pub mod env;
 mod error;
 pub mod fmt;
@@ -31,7 +30,6 @@ pub mod syscalls;
 
 pub use allocator::Allocator;
 pub use cstr::CStr;
-pub use directory::Directory;
 pub use error::Error;
 
 #[cfg(test)]

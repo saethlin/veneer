@@ -113,7 +113,10 @@ fn round_to_page(layout: Layout) -> Layout {
     } else {
         layout.size() + 4096 - remainder
     };
-    Layout::from_size_align(size, layout.align()).unwrap()
+    match Layout::from_size_align(size, layout.align()) {
+        Ok(l) => l,
+        Err(_) => alloc::alloc::handle_alloc_error(layout),
+    }
 }
 
 unsafe impl GlobalAlloc for Allocator {
@@ -185,7 +188,9 @@ unsafe impl GlobalAlloc for Allocator {
                 return;
             }
         }
-        syscalls::munmap(ptr, layout.size()).unwrap();
+        // This is technically fallible, but it seems like there isn't a way to indicate failure
+        // when deallocating.
+        let _ = syscalls::munmap(ptr, layout.size());
     }
 
     unsafe fn realloc(&self, ptr: *mut u8, mut layout: Layout, mut new_size: usize) -> *mut u8 {
@@ -225,5 +230,15 @@ unsafe impl GlobalAlloc for Allocator {
 
         syscalls::mremap(ptr, layout.size(), new_size, libc::MREMAP_MAYMOVE)
             .unwrap_or(core::ptr::null_mut())
+    }
+}
+
+impl Drop for Allocator {
+    fn drop(&mut self) {
+        for (_, ptr, len) in self.cache.lock().iter() {
+            unsafe {
+                let _ = syscalls::munmap(*ptr, *len);
+            }
+        }
     }
 }
