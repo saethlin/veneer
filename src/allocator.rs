@@ -29,30 +29,28 @@ impl core::ops::DerefMut for Slab {
 }
 
 impl SmallAllocator {
+    fn to_blocks(size: usize) -> usize {
+        let remainder = size % 64;
+        let size = if remainder == 0 {
+            size
+        } else {
+            size + 64 - remainder
+        };
+        size / 64
+    }
+
     pub fn alloc(&mut self, layout: Layout) -> *mut u8 {
         if layout.align() > 64 || layout.size() == 0 || layout.size() > 4096 {
             return core::ptr::null_mut();
         }
 
-        // Round size up to a multiple of 64
-        let remainder = layout.size() % 64;
-        let size = if remainder == 0 {
-            layout.size()
-        } else {
-            layout.size() + 64 - remainder
-        };
-        let blocks = size / 64;
-        assert!(blocks * 64 >= layout.size());
+        let blocks = Self::to_blocks(layout.size());
+
         let my_mask = u64::MAX << (64 - blocks);
 
-        let previously_used_blocks = self.usage_mask.count_ones();
-        for i in 0..(64 - blocks) {
-            if (my_mask >> i) & (!self.usage_mask) == (my_mask >> i) {
+        for i in 0..=(64 - blocks) {
+            if ((my_mask >> i) & self.usage_mask) == 0 {
                 self.usage_mask |= my_mask >> i;
-                assert_eq!(
-                    previously_used_blocks + blocks as u32,
-                    self.usage_mask.count_ones()
-                );
                 return self.slab[64 * i..].as_mut_ptr();
             }
         }
@@ -62,27 +60,18 @@ impl SmallAllocator {
 
     unsafe fn dealloc(&mut self, ptr: *mut u8, layout: Layout) -> bool {
         let offset = ptr.offset_from(self.slab.as_mut_ptr());
-        if offset < 0 {
-            return false;
-        }
-        let offset = offset as usize;
-        if offset >= 4096 {
+        if !(0..4096).contains(&offset) {
             return false;
         }
 
-        let offset_blocks = offset / 64;
+        let offset_blocks = offset as usize / 64;
+        let blocks = Self::to_blocks(layout.size());
 
-        let remainder = layout.size() % 64;
-        let size = if remainder == 0 {
-            layout.size()
-        } else {
-            layout.size() + 64 - remainder
-        };
-        let blocks = size / 64;
+        let my_mask = (u64::MAX << (64 - blocks)) >> offset_blocks;
 
-        for i in 0..blocks {
-            self.usage_mask &= !((1 << 63) >> (i + offset_blocks));
-        }
+        assert!(my_mask & self.usage_mask == my_mask);
+        self.usage_mask ^= my_mask;
+
         true
     }
 }
@@ -98,7 +87,7 @@ impl Allocator {
             cache: SpinLock::new([(false, ptr::null_mut(), 0); 64]),
             small: SpinLock::new(SmallAllocator {
                 slab: Slab([0u8; 4096]),
-                usage_mask: 0u64,
+                usage_mask: 0,
             }),
         }
     }
@@ -193,7 +182,8 @@ unsafe impl GlobalAlloc for Allocator {
 
     unsafe fn realloc(&self, ptr: *mut u8, mut layout: Layout, mut new_size: usize) -> *mut u8 {
         let mut small = self.small.lock();
-        if ptr > small.slab.as_mut_ptr() && ptr < small.slab.as_mut_ptr().add(small.slab.len()) {
+        let offset = ptr.offset_from(small.slab.as_mut_ptr());
+        if (0..4096).contains(&offset) {
             drop(small);
             let new_layout = Layout::from_size_align_unchecked(new_size, layout.align());
             let new_ptr = self.alloc(new_layout);
@@ -237,6 +227,45 @@ impl Drop for Allocator {
             unsafe {
                 let _ = syscalls::munmap(*ptr, *len);
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn small() {
+        let mut alloc = SmallAllocator {
+            slab: Slab([0u8; 4096]),
+            usage_mask: 0,
+        };
+
+        for size in 1..4096 {
+            let remainder = size % 64;
+            let rounded = if remainder == 0 {
+                size
+            } else {
+                size + 64 - remainder
+            };
+            let blocks = rounded / 64;
+
+            assert!(blocks * 64 >= size);
+
+            let layout = Layout::from_size_align(size, 1).unwrap();
+
+            let ptr = alloc.alloc(layout);
+
+            assert!(!ptr.is_null());
+
+            assert_eq!(blocks, alloc.usage_mask.count_ones() as usize);
+
+            unsafe {
+                assert!(alloc.dealloc(ptr, layout));
+            }
+
+            assert_eq!(0, alloc.usage_mask.count_ones());
         }
     }
 }

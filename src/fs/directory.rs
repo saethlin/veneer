@@ -129,13 +129,28 @@ impl<'a> Iterator for IterDir<'a> {
     }
 }
 
-// Storing just a reference in here instead of an inode, d_type, and CStr makes
-// this struct smaller and prevents calling strlen if the name is never required.
 #[derive(Clone)]
 pub struct DirEntry<'a> {
-    pub inode: libc::c_ulong,
-    pub name: CStr<'a>,
-    pub d_type: DType,
+    inode: libc::c_ulong,
+    name: CStr<'a>,
+    d_type: DType,
+}
+
+impl<'a> DirEntry<'a> {
+    #[inline]
+    pub fn name(&self) -> CStr<'a> {
+        self.name
+    }
+
+    #[inline]
+    pub fn inode(&self) -> libc::c_ulong {
+        self.inode
+    }
+
+    #[inline]
+    pub fn d_type(&self) -> DType {
+        self.d_type
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

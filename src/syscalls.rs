@@ -430,9 +430,10 @@ pub unsafe fn clone(
 // execve
 
 #[inline]
-pub fn exit(error_code: c_int) {
+pub fn exit(error_code: c_int) -> ! {
     unsafe {
         syscall!(EXIT, error_code);
+        core::hint::unreachable_unchecked();
     }
 }
 

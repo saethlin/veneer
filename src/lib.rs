@@ -25,9 +25,9 @@ pub use allocator::Allocator;
 pub use cstr::CStr;
 pub use error::Error;
 
-#[cfg(test)]
+#[cfg(not(test))]
 #[global_allocator]
-static ALLOC: Allocator = Allocator::new();
+static ALLOC: crate::Allocator = crate::Allocator::new();
 
 #[macro_export]
 macro_rules! print {
@@ -54,44 +54,5 @@ macro_rules! eprint {
 macro_rules! eprintln {
     ($format:expr, $($args:tt)*) => {
         core::fmt::write(&mut veneer::io::Stderr, format_args!(concat!($format, "\n"), $($args)*)).unwrap();
-    };
-}
-
-#[macro_export]
-macro_rules! prelude {
-    () => {
-        #[lang = "eh_personality"]
-        #[no_mangle]
-        pub extern "C" fn rust_eh_personality() {}
-
-        #[panic_handler]
-        fn panic(info: &core::panic::PanicInfo) -> ! {
-            veneer::eprint!("{}", info);
-            let _ = veneer::syscalls::kill(0, libc::SIGABRT);
-            veneer::syscalls::exit(-1);
-            loop {}
-        }
-
-        #[alloc_error_handler]
-        fn alloc_error(layout: core::alloc::Layout) -> ! {
-            veneer::eprint!(
-                "Unable to allocate, size: {}\n",
-                itoa::Buffer::new().format(layout.size())
-            );
-            let _ = veneer::syscalls::kill(0, libc::SIGABRT);
-            veneer::syscalls::exit(-1);
-            loop {}
-        }
-
-        #[global_allocator]
-        static ALLOC: veneer::Allocator = veneer::Allocator::new();
-
-        use veneer::{eprint, eprintln, print, println};
-
-        #[start]
-        fn start(argc: isize, argp: *const *const u8) -> isize {
-            main();
-            0
-        }
     };
 }
