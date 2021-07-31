@@ -71,14 +71,6 @@ pub fn close(fd: c_int) -> Result<(), Error> {
 }
 
 #[inline]
-pub fn stat(path: CStr) -> Result<libc::stat, Error> {
-    unsafe {
-        let mut status: libc::stat = mem::zeroed();
-        syscall!(STAT, path.as_ptr(), &mut status as *mut libc::stat).to_result_with(status)
-    }
-}
-
-#[inline]
 pub fn fstat(fd: c_int) -> Result<libc::stat, Error> {
     unsafe {
         let mut status: libc::stat = mem::zeroed();
@@ -95,8 +87,21 @@ pub fn lstat(path: CStr) -> Result<libc::stat, Error> {
 }
 
 #[inline]
-pub fn poll(fds: &mut [libc::pollfd], timeout: c_int) -> Result<usize, Error> {
-    unsafe { syscall!(POLL, fds.as_ptr(), fds.len(), timeout) }.usize_result()
+pub fn ppoll(
+    fds: &mut [libc::pollfd],
+    timeout: &libc::timespec,
+    sigmask: &libc::sigset_t,
+) -> Result<usize, Error> {
+    unsafe {
+        syscall!(
+            PPOLL,
+            fds.as_ptr(),
+            fds.len(),
+            timeout as *const libc::timespec,
+            sigmask as *const libc::sigset_t
+        )
+    }
+    .usize_result()
 }
 
 #[derive(Clone, Copy)]
@@ -219,36 +224,18 @@ bitflags::bitflags! {
     }
 }
 
-#[inline]
-pub fn access(pathname: CStr, mode: Mode) -> Result<(), Error> {
-    unsafe { syscall!(ACCESS, pathname.as_ptr(), mode.bits()) }.null_result()
-}
-
-#[inline]
-pub fn pipe() -> Result<[c_int; 2], Error> {
-    let mut pipefd: [c_int; 2] = [0, 0];
-    unsafe { syscall!(PIPE, pipefd.as_mut_ptr()) }.to_result_with(pipefd)
-}
-
-#[inline]
-pub fn select(
-    nfds: c_int,
-    readfds: &mut libc::fd_set,
-    writefds: &mut libc::fd_set,
-    exceptfds: &mut libc::fd_set,
-    timeout: &mut libc::timespec,
-) -> Result<c_int, Error> {
-    unsafe {
-        syscall!(
-            SELECT,
-            nfds,
-            readfds as *mut libc::fd_set,
-            writefds as *mut libc::fd_set,
-            exceptfds as *mut libc::fd_set,
-            timeout as *mut libc::timespec
-        )
+bitflags::bitflags! {
+    pub struct Pipe2Flags: c_int {
+        const CLOEXEC = libc::O_CLOEXEC;
+        const DIRECT = libc::O_DIRECT;
+        const NONBLOCK = libc::O_NONBLOCK;
     }
-    .to_result_and(|n| n as c_int)
+}
+
+#[inline]
+pub fn pipe2(flags: Pipe2Flags) -> Result<[c_int; 2], Error> {
+    let mut pipefd: [c_int; 2] = [0, 0];
+    unsafe { syscall!(PIPE2, pipefd.as_mut_ptr(), flags.bits()) }.to_result_with(pipefd)
 }
 
 #[inline]

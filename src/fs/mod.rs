@@ -62,7 +62,8 @@ impl Write for File {
 
 #[inline]
 pub fn read(path: &[u8]) -> Result<Vec<u8>, Error> {
-    let file_len = syscalls::stat(CStr::from_bytes(path)).map(|stat| stat.st_size)?;
+    let file_len =
+        syscalls::fstatat(libc::AT_FDCWD, CStr::from_bytes(path)).map(|stat| stat.st_size)?;
     let mut file = File::open(path)?;
     let mut bytes = vec![0; file_len as usize];
     let mut buf = &mut bytes[..];
