@@ -16,7 +16,7 @@ pub trait Write {
                 Ok(0) => {
                     return Err(Error(libc::EBADF));
                 }
-                Ok(n) => buf = &buf[n..],
+                Ok(n) => buf = buf.get(n..).unwrap_or_default(),
                 Err(Error(libc::EAGAIN)) => {}
                 Err(e) => return Err(e),
             }
@@ -37,8 +37,10 @@ impl Write for Stdout {
 impl core::fmt::Write for Stdout {
     #[inline]
     fn write_str(&mut self, s: &str) -> core::fmt::Result {
-        self.write(s.as_bytes()).unwrap();
-        Ok(())
+        match self.write_all(s.as_bytes()) {
+            Ok(_) => Ok(()),
+            Err(_) => panic!("Unable to write to stdout"),
+        }
     }
 }
 
@@ -54,7 +56,9 @@ impl Write for Stderr {
 impl core::fmt::Write for Stderr {
     #[inline]
     fn write_str(&mut self, s: &str) -> core::fmt::Result {
-        self.write(s.as_bytes()).unwrap();
-        Ok(())
+        match self.write_all(s.as_bytes()) {
+            Ok(_) => Ok(()),
+            Err(_) => panic!("Unable to write to stderr"),
+        }
     }
 }

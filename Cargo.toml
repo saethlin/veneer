@@ -3,11 +3,13 @@ name = "veneer"
 version = "0.1.0"
 authors = ["Ben Kimock <kimockb@gmail.com>"]
 edition = "2018"
+include = ["src/**/*.rs", "README.md", "LICENSE-MIT", "LICENSE-APACHE"]
 
 [dependencies]
 sc = "0.2"
 bitflags = "1.2"
 libc = { version = "0.2", default-features = false }
+veneer-macros = "0.1"
 
 [dev-dependencies]
 itoa = { version = "0.4", default-features = false }

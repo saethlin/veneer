@@ -1,0 +1,9 @@
+[package]
+name = "veneer-macros"
+version = "0.1.0"
+authors = ["Ben Kimock <kimockb@gmail.com>"]
+edition = "2018"
+include = ["src/**/*.rs", "README.md", "LICENSE-MIT", "LICENSE-APACHE"]
+
+[lib]
+proc-macro = true

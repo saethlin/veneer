@@ -11,6 +11,13 @@ impl PartialEq<i32> for Error {
 impl core::fmt::Debug for Error {
     #[inline]
     fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+        <Self as core::fmt::Display>::fmt(self, f)
+    }
+}
+
+impl core::fmt::Display for Error {
+    #[inline]
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         write!(f, "OS Error {}", self.0)
     }
 }

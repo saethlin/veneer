@@ -1,8 +1,8 @@
 use crate::CStr;
 use core::sync::atomic::{AtomicIsize, AtomicPtr, Ordering::SeqCst};
 
-static ARGC: AtomicIsize = AtomicIsize::new(-1);
-static ARGV: AtomicPtr<*const u8> = AtomicPtr::new(core::ptr::null_mut());
+pub(crate) static ARGC: AtomicIsize = AtomicIsize::new(-1);
+pub(crate) static ARGV: AtomicPtr<*const u8> = AtomicPtr::new(core::ptr::null_mut());
 
 #[inline]
 pub fn args() -> impl Iterator<Item = CStr<'static>> {
