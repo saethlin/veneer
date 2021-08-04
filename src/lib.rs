@@ -79,7 +79,7 @@ unsafe extern "C" fn _start() {
 #[no_mangle]
 unsafe extern "C" fn __veneer_init(argc: isize, argv: *mut *const u8) {
     crate::env::ARGC.store(argc, core::sync::atomic::Ordering::SeqCst);
-    crate::env::ARGV.store(argv as _, core::sync::atomic::Ordering::SeqCst);
+    crate::env::ARGV.store(argv.cast(), core::sync::atomic::Ordering::SeqCst);
 }
 
 #[cfg(not(test))]

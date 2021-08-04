@@ -7,14 +7,14 @@ use proc_macro::{quote, Delimiter, Diagnostic, Level, TokenStream, TokenTree};
 pub fn main(args: TokenStream, item: TokenStream) -> TokenStream {
     if !args.is_empty() {
         let start = args.clone().into_iter().next().unwrap().span();
-        let end = args.clone().into_iter().last().unwrap().span();
+        let end = args.into_iter().last().unwrap().span();
         let span = start.join(end).unwrap();
         Diagnostic::spanned(
             vec![span],
             Level::Error,
             "Attribute macro veneer_macros::main does not accept any arguments",
         )
-        .emit()
+        .emit();
     }
 
     let signature = item
@@ -38,19 +38,21 @@ pub fn main(args: TokenStream, item: TokenStream) -> TokenStream {
         "Attribute macro veneer_macros::main may only be applied to functions which take no arguments",
     );
 
-    let name = match (signature.get(0), signature.get(1), signature.get(2)) {
-        (Some(TokenTree::Ident(f)), Some(TokenTree::Ident(name)), Some(TokenTree::Group(args))) => {
-            if f.to_string() == "fn" && args.delimiter() == Delimiter::Parenthesis {
-                name
-            } else {
-                not_a_fn.emit();
-                return item;
-            }
-        }
-        _ => {
+    let name = if let (
+        Some(TokenTree::Ident(f)),
+        Some(TokenTree::Ident(name)),
+        Some(TokenTree::Group(args)),
+    ) = (signature.get(0), signature.get(1), signature.get(2))
+    {
+        if f.to_string() == "fn" && args.delimiter() == Delimiter::Parenthesis {
+            name
+        } else {
             not_a_fn.emit();
             return item;
         }
+    } else {
+        not_a_fn.emit();
+        return item;
     };
 
     let name = TokenTree::from(name.clone());
