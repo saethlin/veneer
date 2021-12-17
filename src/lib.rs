@@ -1,10 +1,6 @@
-#![no_std]
-#![feature(lang_items, naked_functions, asm, alloc_error_handler)]
+#![cfg_attr(not(test), no_std)]
+#![feature(naked_functions, alloc_error_handler, lang_items)]
 #![warn(clippy::missing_inline_in_public_items)]
-
-// Use std in tests to assert
-#[cfg(test)]
-extern crate std;
 
 #[cfg(not(target_os = "linux"))]
 core::compile_error!("This library is only implemented for linux");
@@ -31,15 +27,18 @@ pub use cstr::CStr;
 pub use error::Error;
 pub use veneer_macros::main;
 
+#[cfg(not(test))]
 #[lang = "eh_personality"]
 #[no_mangle]
 pub extern "C" fn eh_personality() {}
 
+#[cfg(not(test))]
 #[alloc_error_handler]
 fn alloc_error(layout: core::alloc::Layout) -> ! {
     panic!("memory allocation of {} bytes failed", layout.size());
 }
 
+#[cfg(not(test))]
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {
     crate::eprintln!("{}", info);
@@ -47,12 +46,12 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
     crate::syscalls::exit(-1)
 }
 
-#[cfg(target_arch = "x86_64")]
+#[cfg(all(not(test), target_arch = "x86_64"))]
 #[no_mangle]
 #[naked]
 unsafe extern "C" fn _start() {
     // Just move argc and argv into the right registers and call main
-    asm!(
+    core::arch::asm!(
         "mov rdi, [rsp]", // The value of rsp is actually a pointer to argc
         "mov rsi, rsp",
         "add rsi, 8", // But for argv we just increment the rsp pointer by 1 (offset by 8)
@@ -62,11 +61,11 @@ unsafe extern "C" fn _start() {
     )
 }
 
-#[cfg(target_arch = "aarch64")]
+#[cfg(all(not(test), target_arch = "aarch64"))]
 #[no_mangle]
 #[naked]
 unsafe extern "C" fn _start() {
-    asm!(
+    core::arch::asm!(
         "ldr x0, [sp]",
         "mov x1, sp",
         "add x1, x1, 0x8",
@@ -76,6 +75,7 @@ unsafe extern "C" fn _start() {
     )
 }
 
+#[cfg(not(test))]
 #[no_mangle]
 unsafe extern "C" fn __veneer_init(argc: isize, argv: *mut *const u8) {
     crate::env::ARGC.store(argc, core::sync::atomic::Ordering::SeqCst);
