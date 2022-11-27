@@ -121,8 +121,12 @@ pub fn lseek(fd: c_int, seek_mode: SeekFrom, offset: usize) -> Result<usize, Err
     unsafe { syscall!(LSEEK, fd, seek_mode, offset) }.usize_result()
 }
 
+/// # Safety
+///
+/// Some combinations of arguments deallocate at `addr`.
+/// See `man 2 mmap`.
 #[inline]
-pub fn mmap(
+pub unsafe fn mmap(
     addr: *mut u8,
     len: usize,
     prot: i32,
@@ -148,6 +152,7 @@ pub unsafe fn munmap(addr: *mut u8, len: usize) -> Result<(), Error> {
     syscall!(MUNMAP, addr, len).null_result()
 }
 
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
 #[inline]
 pub fn brk(addr: *mut u8) -> Result<*mut u8, Error> {
     unsafe { syscall!(BRK, addr) }.to_result_and(|n| n as *mut u8)
@@ -243,8 +248,11 @@ pub fn sched_yield() -> Result<(), Error> {
     unsafe { syscall!(SCHED_YIELD) }.null_result()
 }
 
+/// # Safety
+///
+/// This function's safety is approximately that of `realloc`.
 #[inline]
-pub fn mremap(
+pub unsafe fn mremap(
     old_address: *mut u8,
     old_size: usize,
     new_size: usize,
@@ -521,7 +529,7 @@ pub fn lstatat(fd: c_int, name: CStr) -> Result<libc::stat64, Error> {
 
 #[inline]
 pub fn getdents64(fd: c_int, buf: &mut [u8]) -> Result<usize, Error> {
-    unsafe { syscall!(GETDENTS64, fd, buf.as_mut_ptr(), buf.len()) }.to_result_and(|n| n)
+    unsafe { syscall!(GETDENTS64, fd, buf.as_mut_ptr(), buf.len()) }.usize_result()
 }
 
 #[inline]
@@ -532,7 +540,7 @@ pub fn faccessat(fd: c_int, name: CStr, mode: c_int) -> Result<(), Error> {
 #[inline]
 pub fn readlinkat<'a>(fd: c_int, name: CStr, buf: &'a mut [u8]) -> Result<&'a [u8], Error> {
     match unsafe { syscall!(READLINKAT, fd, name.as_ptr(), buf.as_mut_ptr(), buf.len()) }
-        .to_result_and(|n| n)
+        .usize_result()
     {
         Ok(n) => Ok(buf.get(..n).unwrap_or_default()),
         Err(e) => Err(e),
@@ -577,7 +585,7 @@ trait SyscallRet: Sized {
     }
 }
 
-impl SyscallRet for usize {
+impl SyscallRet for *const () {
     #[inline]
     fn to_result_with<T>(self, t: T) -> Result<T, Error> {
         let ret = self as isize;
@@ -604,6 +612,16 @@ impl SyscallRet for usize {
 
     #[inline]
     fn usize_result(self) -> Result<usize, Error> {
-        self.to_result_and(|n| n)
+        self.to_result_and(|n| n as usize)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_write() {
+        write(1, &b"Hello"[..]).unwrap();
     }
 }
