@@ -5,8 +5,10 @@
 #![allow(internal_features)] // Must use lang_items to implement a Rust runtime
 
 #[cfg(not(target_os = "linux"))]
-core::compile_error!("This library is only implemented for Linux,\n\
-    because the primary goal of this library is to bypass");
+core::compile_error!(
+    "This library is only implemented for Linux,\n\
+    because the primary goal of this library is to bypass"
+);
 
 #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
 compile_error!("This crate is only implemented for x86_64 and aarch64");
