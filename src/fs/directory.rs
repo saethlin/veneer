@@ -11,7 +11,7 @@ pub struct Directory {
     fd: c_int,
 }
 
-impl<'a> Directory {
+impl<'_> Directory {
     #[inline]
     pub fn open(path: CStr) -> Result<Self, Error> {
         Ok(Self {
@@ -104,7 +104,7 @@ impl<'a> Iterator for IterDir<'a> {
         self.remaining = &self.remaining[reclen as usize..];
 
         Some(DirEntry {
-            inode: inode as u64,
+            inode,
             name,
             d_type: match d_type {
                 0 => DType::UNKNOWN,
