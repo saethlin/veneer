@@ -71,10 +71,7 @@ pub fn main(args: TokenStream, item: TokenStream) -> TokenStream {
             unsafe extern "C" fn __veneer_main() {
                let exit_code = match $name() {
                     Ok(()) => 0,
-                    Err(e) => {
-                        veneer::eprintln!("Error: {}", e);
-                        1
-                    },
+                    Err(_) => 1,
                 };
                 veneer::syscalls::exit(exit_code);
             }
