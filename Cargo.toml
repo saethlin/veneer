@@ -17,3 +17,7 @@ veneer-macros = "0.1"
 
 [dev-dependencies]
 itoa = { version = "0.4", default-features = false }
+
+[features]
+mem = []
+default = ["mem"]
