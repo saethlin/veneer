@@ -11,7 +11,7 @@ pub struct Directory {
     fd: c_int,
 }
 
-impl<'_> Directory {
+impl Directory {
     #[inline]
     pub fn open(path: CStr) -> Result<Self, Error> {
         Ok(Self {
