@@ -10,7 +10,7 @@ edition = "2018"
 include = ["src/**/*.rs", "README.md", "LICENSE-MIT", "LICENSE-APACHE"]
 
 [dependencies]
-sc = "0.2"
+sc = { git = "https://github.com/saethlin/syscall.rs" }
 bitflags = "2"
 libc = { version = "0.2", default-features = false }
 veneer-macros = "0.1"
