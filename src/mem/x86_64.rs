@@ -16,9 +16,7 @@
 // feature is present at compile-time. We don't bother detecting other features.
 // Note that ERMSB does not enhance the backwards (DF=1) "rep movsb".
 
-use core::arch::asm;
-use core::intrinsics;
-use core::mem;
+use core::{arch::asm, intrinsics, mem};
 
 #[inline(always)]
 #[cfg(target_feature = "ermsb")]

@@ -8,9 +8,11 @@ type c_int = i16;
 #[cfg(not(target_pointer_width = "16"))]
 type c_int = i32;
 
-use core::intrinsics::{atomic_load_unordered, atomic_store_unordered, exact_div};
-use core::mem;
-use core::ops::{BitOr, Shl};
+use core::{
+    intrinsics::{atomic_load_unordered, atomic_store_unordered, exact_div},
+    mem,
+    ops::{BitOr, Shl},
+};
 
 mod macros;
 use macros::intrinsics;
