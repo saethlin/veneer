@@ -11,12 +11,12 @@ include = ["src/**/*.rs", "README.md", "LICENSE-MIT", "LICENSE-APACHE"]
 
 [dependencies]
 sc = "0.2"
-bitflags = "1.2"
+bitflags = "2"
 libc = { version = "0.2", default-features = false }
 veneer-macros = "0.1"
 
 [dev-dependencies]
-itoa = { version = "0.4", default-features = false }
+itoa = { version = "1", default-features = false }
 
 [features]
 rt = []
