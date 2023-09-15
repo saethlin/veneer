@@ -5,7 +5,7 @@ use sc::syscall;
 
 #[inline]
 pub fn read(fd: c_int, bytes: &mut [u8]) -> Result<usize, Error> {
-    unsafe { syscall!(READ, fd, bytes.as_ptr(), bytes.len()) }.usize_result()
+    unsafe { syscall!(READ, fd, bytes.as_mut_ptr(), bytes.len()) }.usize_result()
 }
 
 #[inline]
@@ -95,7 +95,7 @@ pub fn ppoll(
     unsafe {
         syscall!(
             PPOLL,
-            fds.as_ptr(),
+            fds.as_mut_ptr(),
             fds.len(),
             timeout as *const libc::timespec,
             sigmask as *const libc::sigset_t
@@ -531,7 +531,7 @@ pub fn faccessat(fd: c_int, name: CStr, mode: c_int) -> Result<(), Error> {
 
 #[inline]
 pub fn readlinkat<'a>(fd: c_int, name: CStr, buf: &'a mut [u8]) -> Result<&'a [u8], Error> {
-    match unsafe { syscall!(READLINKAT, fd, name.as_ptr(), buf.as_ptr(), buf.len()) }
+    match unsafe { syscall!(READLINKAT, fd, name.as_ptr(), buf.as_mut_ptr(), buf.len()) }
         .to_result_and(|n| n)
     {
         Ok(n) => Ok(buf.get(..n).unwrap_or_default()),

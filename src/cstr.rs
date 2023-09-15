@@ -113,7 +113,7 @@ mod tests {
             let mut buf: Vec<u8> = core::iter::repeat(123).take(len).collect();
             buf.push(0);
             let the_str = unsafe { CStr::from_ptr(buf.as_ptr()) };
-            assert_eq!(the_str.len(), len as usize);
+            assert_eq!(the_str.len(), len);
         }
     }
 }
