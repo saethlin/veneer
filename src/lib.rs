@@ -1,7 +1,8 @@
 #![cfg_attr(not(test), no_std)]
-#![feature(naked_functions, alloc_error_handler)]
+#![feature(naked_functions, alloc_error_handler, lang_items)]
 #![warn(clippy::missing_inline_in_public_items)]
 #![feature(cfg_target_has_atomic, core_intrinsics, inline_const, linkage)]
+#![allow(internal_features)] // Must use lang_items to implement a Rust runtime
 
 #[cfg(not(target_os = "linux"))]
 core::compile_error!("This library is only implemented for Linux,\n\
