@@ -1,6 +1,6 @@
 [package]
 name = "veneer"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["Ben Kimock <kimockb@gmail.com>"]
 license = "MIT OR Apache-2.0"
 description = "A very thin std-like library that doesn't depend on libc"
