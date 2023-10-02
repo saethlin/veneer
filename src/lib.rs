@@ -6,8 +6,12 @@
 
 #[cfg(not(target_os = "linux"))]
 core::compile_error!(
-    "This library is only implemented for Linux,\n\
-    because the primary goal of this library is to bypass"
+    "This library is only implemented for Linux, \
+    because the primary goal of this library is to bypass the \
+    system libc and make syscalls directly. Making syscalls without \
+    going through libc is not supported on Windows and MacOS. \
+    Support for any OS with a stable syscall ABI may be considered, \
+    open an issue on https://github.com/saethlin/veneer."
 );
 
 #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
