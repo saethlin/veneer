@@ -19,22 +19,38 @@ compile_error!("This crate is only implemented for x86_64 and aarch64");
 
 extern crate alloc;
 
+#[cfg(target_os = "linux")]
 mod allocator;
+#[cfg(target_os = "linux")]
 mod cstr;
+#[cfg(target_os = "linux")]
 pub mod env;
+#[cfg(target_os = "linux")]
 mod error;
+#[cfg(target_os = "linux")]
 pub mod fmt;
+#[cfg(target_os = "linux")]
 pub mod fs;
+#[cfg(target_os = "linux")]
 pub mod io;
+#[cfg(target_os = "linux")]
 mod mem;
+#[cfg(target_os = "linux")]
 pub mod net;
+#[cfg(target_os = "linux")]
 pub mod prelude;
+#[cfg(target_os = "linux")]
 mod spinlock;
+#[cfg(target_os = "linux")]
 pub mod syscalls;
 
+#[cfg(target_os = "linux")]
 pub use allocator::Allocator;
+#[cfg(target_os = "linux")]
 pub use cstr::CStr;
+#[cfg(target_os = "linux")]
 pub use error::Error;
+#[cfg(target_os = "linux")]
 pub use veneer_macros::main;
 
 #[cfg(all(feature = "rt", not(test)))]
@@ -48,7 +64,7 @@ fn alloc_error(layout: core::alloc::Layout) -> ! {
     panic!("memory allocation of {} bytes failed", layout.size());
 }
 
-#[cfg(all(feature = "rt", not(test)))]
+#[cfg(all(target_os = "linux", feature = "rt", not(test)))]
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {
     crate::eprintln!("{}", info);
@@ -56,7 +72,7 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
     crate::syscalls::exit(-1)
 }
 
-#[cfg(all(feature = "rt", not(test), target_arch = "x86_64"))]
+#[cfg(all(target_os = "linux", feature = "rt", not(test), target_arch = "x86_64"))]
 #[no_mangle]
 #[naked]
 unsafe extern "C" fn _start() {
@@ -71,7 +87,12 @@ unsafe extern "C" fn _start() {
     )
 }
 
-#[cfg(all(feature = "rt", not(test), target_arch = "aarch64"))]
+#[cfg(all(
+    target_os = "linux",
+    feature = "rt",
+    not(test),
+    target_arch = "aarch64"
+))]
 #[no_mangle]
 #[naked]
 unsafe extern "C" fn _start() {
@@ -85,14 +106,14 @@ unsafe extern "C" fn _start() {
     )
 }
 
-#[cfg(all(feature = "rt", not(test)))]
+#[cfg(all(target_os = "linux", target_os = "linux", feature = "rt", not(test)))]
 #[no_mangle]
 unsafe extern "C" fn __veneer_init(argc: isize, argv: *mut *const u8) {
     crate::env::ARGC.store(argc, core::sync::atomic::Ordering::SeqCst);
     crate::env::ARGV.store(argv.cast(), core::sync::atomic::Ordering::SeqCst);
 }
 
-#[cfg(all(feature = "rt", not(test)))]
+#[cfg(all(target_os = "linux", feature = "rt", not(test)))]
 #[global_allocator]
 static ALLOC: crate::Allocator = crate::Allocator::new();
 
