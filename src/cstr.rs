@@ -52,7 +52,7 @@ impl<'a> CStr<'a> {
     }
 }
 
-impl<'a> core::ops::Deref for CStr<'a> {
+impl core::ops::Deref for CStr<'_> {
     type Target = [u8];
     #[inline]
     fn deref(&self) -> &Self::Target {
@@ -60,7 +60,7 @@ impl<'a> core::ops::Deref for CStr<'a> {
     }
 }
 
-impl<'a> PartialEq<&[u8]> for CStr<'a> {
+impl PartialEq<&[u8]> for CStr<'_> {
     #[inline]
     fn eq(&self, bytes: &&[u8]) -> bool {
         if bytes.last() == Some(&0) {
@@ -71,14 +71,14 @@ impl<'a> PartialEq<&[u8]> for CStr<'a> {
     }
 }
 
-impl<'a> PartialEq<&str> for CStr<'a> {
+impl PartialEq<&str> for CStr<'_> {
     #[inline]
     fn eq(&self, other: &&str) -> bool {
         &self.bytes[..self.bytes.len() - 1] == other.as_bytes()
     }
 }
 
-impl<'a> fmt::Debug for CStr<'a> {
+impl fmt::Debug for CStr<'_> {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match str::from_utf8(self.as_bytes()) {
@@ -90,7 +90,7 @@ impl<'a> fmt::Debug for CStr<'a> {
     }
 }
 
-impl<'a> fmt::Display for CStr<'a> {
+impl fmt::Display for CStr<'_> {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match str::from_utf8(self.as_bytes()) {
