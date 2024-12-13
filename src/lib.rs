@@ -1,7 +1,7 @@
 #![cfg_attr(not(test), no_std)]
 #![feature(naked_functions, alloc_error_handler, lang_items)]
 #![warn(clippy::missing_inline_in_public_items)]
-#![feature(cfg_target_has_atomic, core_intrinsics, inline_const, linkage)]
+#![feature(cfg_target_has_atomic, core_intrinsics, linkage)]
 #![allow(internal_features)] // Must use lang_items to implement a Rust runtime
 
 #[cfg(not(target_os = "linux"))]
@@ -77,7 +77,7 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
 #[naked]
 unsafe extern "C" fn _start() {
     // Just move argc and argv into the right registers and call main
-    core::arch::asm!(
+    core::arch::naked_asm!(
         "mov rdi, [rsp]", // The value of rsp is actually a pointer to argc
         "mov rsi, rsp",
         "add rsi, 8", // But for argv we just increment the rsp pointer by 1 (offset by 8)
@@ -96,7 +96,7 @@ unsafe extern "C" fn _start() {
 #[no_mangle]
 #[naked]
 unsafe extern "C" fn _start() {
-    core::arch::asm!(
+    core::arch::naked_asm!(
         "ldr x0, [sp]",
         "mov x1, sp",
         "add x1, x1, 0x8",
