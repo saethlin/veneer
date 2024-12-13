@@ -269,7 +269,7 @@ pub fn msync(memory: &[u8], flags: MSync) -> Result<(), Error> {
 
 #[inline]
 pub fn mincore(memory: &[u8], status: &mut [u8]) -> Result<(), Error> {
-    if status.len() < (memory.len() + 4096 - 1) / 4096 {
+    if status.len() < memory.len().div_ceil(4096) {
         return Err(Error(libc::EINVAL));
     }
     unsafe { syscall!(MINCORE, memory.as_ptr(), memory.len(), status.as_mut_ptr()) }.null_result()

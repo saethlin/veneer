@@ -83,7 +83,6 @@ unsafe extern "C" fn _start() {
         "add rsi, 8", // But for argv we just increment the rsp pointer by 1 (offset by 8)
         "call __veneer_init",
         "call __veneer_main",
-        options(noreturn)
     )
 }
 
@@ -102,7 +101,6 @@ unsafe extern "C" fn _start() {
         "add x1, x1, 0x8",
         "bl __veneer_init",
         "bl __veneer_main",
-        options(noreturn)
     )
 }
 
