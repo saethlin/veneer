@@ -1,5 +1,8 @@
 #![cfg_attr(not(test), no_std)]
-#![feature(naked_functions, alloc_error_handler, lang_items)]
+#![feature(alloc_error_handler, lang_items)]
+#![feature(sync_unsafe_cell)]
+#![feature(vec_split_at_spare)]
+#![feature(maybe_uninit_slice)]
 #![warn(clippy::missing_inline_in_public_items)]
 #![feature(cfg_target_has_atomic, core_intrinsics, linkage)]
 #![allow(internal_features)] // Must use lang_items to implement a Rust runtime
@@ -34,8 +37,6 @@ pub mod fs;
 #[cfg(target_os = "linux")]
 pub mod io;
 #[cfg(target_os = "linux")]
-mod mem;
-#[cfg(target_os = "linux")]
 pub mod net;
 #[cfg(target_os = "linux")]
 pub mod prelude;
@@ -43,15 +44,16 @@ pub mod prelude;
 mod spinlock;
 #[cfg(target_os = "linux")]
 pub mod syscalls;
+#[cfg(target_os = "linux")]
+pub mod libc;
 
 #[cfg(target_os = "linux")]
-pub use allocator::Allocator;
-#[cfg(target_os = "linux")]
-pub use cstr::CStr;
-#[cfg(target_os = "linux")]
-pub use error::Error;
+pub use crate::{cstr::CStr, error::Error};
 #[cfg(target_os = "linux")]
 pub use veneer_macros::main;
+
+#[cfg(all(target_os = "linux", feature = "rt", not(test)))]
+use crate::allocator::Page;
 
 #[cfg(all(feature = "rt", not(test)))]
 #[lang = "eh_personality"]
@@ -109,11 +111,19 @@ unsafe extern "C" fn _start() {
 unsafe extern "C" fn __veneer_init(argc: isize, argv: *mut *const u8) {
     crate::env::ARGC.store(argc, core::sync::atomic::Ordering::SeqCst);
     crate::env::ARGV.store(argv.cast(), core::sync::atomic::Ordering::SeqCst);
+    ALLOC.init(PAGES.get());
 }
 
 #[cfg(all(target_os = "linux", feature = "rt", not(test)))]
 #[global_allocator]
-static ALLOC: crate::Allocator = crate::Allocator::new();
+static ALLOC: crate::allocator::Allocator = crate::allocator::Allocator::new();
+
+#[cfg(all(target_os = "linux", feature = "rt", not(test)))]
+use core::{cell::SyncUnsafeCell, mem::MaybeUninit};
+
+#[cfg(all(target_os = "linux", feature = "rt", not(test)))]
+static PAGES: SyncUnsafeCell<[Page; 64]> =
+    SyncUnsafeCell::new([Page([MaybeUninit::uninit(); 4096]); 64]);
 
 #[macro_export]
 macro_rules! print {

@@ -11,10 +11,7 @@ include = ["src/**/*.rs", "README.md", "LICENSE-MIT", "LICENSE-APACHE"]
 
 [dependencies]
 bitflags = "2"
-libc = { version = "0.2", default-features = false }
 veneer-macros = "0.1"
-
-[target.'cfg(unix)'.dependencies]
 sc = "0.2"
 
 [dev-dependencies]
@@ -22,5 +19,3 @@ itoa = { version = "1", default-features = false }
 
 [features]
 rt = []
-mem = []
-default = ["mem"]

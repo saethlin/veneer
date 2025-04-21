@@ -28,6 +28,15 @@ impl<'a> CStr<'a> {
     }
 
     #[inline]
+    pub unsafe fn from_bytes_unchecked(bytes: &'a [u8]) -> CStr<'a> {
+        debug_assert!(
+            bytes.last() == Some(&0),
+            "attempted to construct a CStr from a slice without a null terminator"
+        );
+        CStr { bytes }
+    }
+
+    #[inline]
     pub fn from_bytes(bytes: &'a [u8]) -> CStr<'a> {
         assert!(
             bytes.last() == Some(&0),

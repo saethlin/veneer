@@ -1,4 +1,5 @@
 use crate::Error;
+use crate::libc;
 
 pub type Result<T> = core::result::Result<T, Error>;
 

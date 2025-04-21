@@ -1,5 +1,7 @@
+use core::ffi::c_int;
+
 #[derive(Clone, Copy)]
-pub struct Error(pub libc::c_int);
+pub struct Error(pub c_int);
 
 impl PartialEq<i32> for Error {
     #[inline]

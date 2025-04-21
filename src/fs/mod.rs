@@ -3,9 +3,10 @@ use crate::{
     syscalls,
     syscalls::{OpenFlags, OpenMode},
     CStr, Error,
+    libc,
 };
 use alloc::{vec, vec::Vec};
-use libc::c_int;
+use core::ffi::c_int;
 
 mod directory;
 pub use directory::*;

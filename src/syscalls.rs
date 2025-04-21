@@ -1,6 +1,5 @@
-use crate::{CStr, Error};
-use core::{marker::PhantomData, mem};
-use libc::c_int;
+use crate::{CStr, Error, libc};
+use core::{ffi::{c_int, c_uint}, marker::PhantomData, mem, mem::MaybeUninit};
 use sc::syscall;
 
 #[inline]
@@ -40,7 +39,7 @@ bitflags::bitflags! {
 }
 
 bitflags::bitflags! {
-    pub struct OpenMode: libc::c_uint {
+    pub struct OpenMode: c_uint {
         const RWXU = libc::S_IRWXU;
         const RUSR = libc::S_IRUSR;
         const WUSR = libc::S_IWUSR;
@@ -153,6 +152,7 @@ pub fn brk(addr: *mut u8) -> Result<*mut u8, Error> {
     unsafe { syscall!(BRK, addr) }.to_result_and(|n| n as *mut u8)
 }
 
+/*
 // Wraps the rt_sigaction call in the same way that glibc does
 // So I guess there's no way to use normal signals, only realtime signals?
 #[inline]
@@ -172,6 +172,7 @@ pub fn sigaction(
     }
     .to_result_with(())
 }
+*/
 
 // sigprocmask
 
@@ -212,7 +213,7 @@ pub fn readv(fd: c_int, iovec: &'_ mut [IoVec<'_>]) -> Result<usize, Error> {
 
 #[inline]
 pub fn writev(fd: c_int, iovec: &'_ [IoVec<'_>]) -> Result<usize, Error> {
-    unsafe { syscall!(READV, fd, iovec.as_ptr(), iovec.len()) }.usize_result()
+    unsafe { syscall!(WRITEV, fd, iovec.as_ptr(), iovec.len()) }.usize_result()
 }
 
 bitflags::bitflags! {
@@ -304,6 +305,7 @@ pub fn madvise(memory: &[u8], advice: Advice) -> Result<(), Error> {
     unsafe { syscall!(MADVISE, memory.as_ptr(), memory.len(), advice.bits()) }.null_result()
 }
 
+/*
 bitflags::bitflags! {
     pub struct ShmFlags: c_int {
         const CREAT = libc::IPC_CREAT;
@@ -319,6 +321,7 @@ bitflags::bitflags! {
 pub fn shmget(key: libc::key_t, size: usize, shmflg: ShmFlags) -> Result<libc::key_t, Error> {
     unsafe { syscall!(SHMGET, key, size, shmflg.bits()) }.to_result_and(|key| key as libc::key_t)
 }
+*/
 
 // shmctl
 //
@@ -435,6 +438,7 @@ pub enum SignalWhere {
     AllValid,
     Group(usize),
 }
+
 #[inline]
 pub fn kill(pid: usize, signal: i32) -> Result<(), Error> {
     unsafe { syscall!(KILL, pid, signal) }.null_result()
@@ -520,7 +524,7 @@ pub fn lstatat(fd: c_int, name: CStr) -> Result<libc::stat64, Error> {
 }
 
 #[inline]
-pub fn getdents64(fd: c_int, buf: &mut [u8]) -> Result<usize, Error> {
+pub fn getdents64(fd: c_int, buf: &mut [MaybeUninit<u8>]) -> Result<usize, Error> {
     unsafe { syscall!(GETDENTS64, fd, buf.as_mut_ptr(), buf.len()) }.to_result_and(|n| n)
 }
 
