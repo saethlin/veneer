@@ -74,7 +74,7 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
 
 #[cfg(all(target_os = "linux", feature = "rt", not(test), target_arch = "x86_64"))]
 #[no_mangle]
-#[naked]
+#[unsafe(naked)]
 unsafe extern "C" fn _start() {
     // Just move argc and argv into the right registers and call main
     core::arch::naked_asm!(
